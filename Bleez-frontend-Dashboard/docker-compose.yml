@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. MongoDB Database
+  # ----------------------------------------------------------------------------
+  mongo:
+    image: mongo:6.0
+    container_name: aitravelglobe-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - aitravelglobe-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 2. Redis In-Memory Cache & Queue Worker
+  # ----------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: aitravelglobe-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aitravelglobe-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 3. Java Spring Boot Backend Service
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ../aitravelglobe-java-backend
+      dockerfile: Dockerfile
+    container_name: aitravelglobe-backend
+    restart: unless-stopped
+    ports:
+      - "4545:4545"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/aitravelglobe_prod
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - JWT_SECRET=67c053a2132cd3d690c929f3505ce7d0e950d523a6249d7885150c3fd1cac39ed7ca10eeda5393bf430938fa1e8e2a10c962375a9fd8c8cc3962254e193a47ca
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - AMADEUS_API_KEY=${AMADEUS_API_KEY:-}
+      - AMADEUS_API_SECRET=${AMADEUS_API_SECRET:-}
+      - STRIPE_API_KEY=${STRIPE_API_KEY:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aitravelglobe-network
+
+  # ----------------------------------------------------------------------------
+  # 4. React Vite Frontend (Nginx Production Reverse Proxy)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aitravelglobe-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - aitravelglobe-network
+
+# ------------------------------------------------------------------------------
+# Persistent Storage Volumes
+# ------------------------------------------------------------------------------
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ------------------------------------------------------------------------------
+# Bridge Network
+# ------------------------------------------------------------------------------
+networks:
+  aitravelglobe-network:
+    driver: bridge

@@ -1,0 +1,89 @@
+/* Additional component styles */
+
+.App {
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal scroll */
+html, body, #root {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Remove default link styling */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Ensure smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Calendar customization */
+.rdp {
+  --rdp-cell-size: 40px;
+  --rdp-accent-color: hsl(43 74% 52%);
+  --rdp-background-color: rgba(142, 79, 208, 0.1);
+}
+
+.rdp-day_selected:not([disabled]) {
+  background-color: var(--rdp-accent-color) !important;
+  color: hsl(222 47% 2%) !important;
+}
+
+.rdp-day:hover:not([disabled]) {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Custom focus states */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid hsl(43 74% 52%);
+  outline-offset: 2px;
+}
+
+/* Loader animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Line clamp */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Responsive typography */
+@media (max-width: 640px) {
+  .text-5xl {
+    font-size: 2.5rem;
+  }
+  .text-6xl {
+    font-size: 3rem;
+  }
+  .text-7xl {
+    font-size: 3.5rem;
+  }
+}

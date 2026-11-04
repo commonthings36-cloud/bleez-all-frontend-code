@@ -1,0 +1,18 @@
+# Backend and archives are not part of this repository
+Bleez-Backend-for-all/
+*.zip
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Secrets: only the *.example files are committed
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
+FRONTEND_AUDIT.md

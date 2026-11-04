@@ -1,0 +1,122 @@
+{
+  "name": "AITravelglobe - Smart Travel Companion",
+  "short_name": "AITravelglobe",
+  "description": "Your AI-powered travel companion. Plan personalized trips, get real-time alerts, compare prices, and explore the world smarter.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#7C3AED",
+  "scope": "/",
+  "lang": "en-US",
+  "dir": "ltr",
+  "categories": ["travel", "lifestyle", "productivity"],
+  "iarc_rating_id": "",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Home Screen"
+    },
+    {
+      "src": "/screenshots/itinerary.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "AI-Generated Itinerary"
+    },
+    {
+      "src": "/screenshots/mobile-home.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile Home"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Plan a Trip",
+      "short_name": "Plan Trip",
+      "description": "Start planning your next adventure",
+      "url": "/plan",
+      "icons": [{ "src": "/icons/shortcut-plan.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "My Trips",
+      "short_name": "Trips",
+      "description": "View your saved trips",
+      "url": "/my-trips",
+      "icons": [{ "src": "/icons/shortcut-trips.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Community",
+      "short_name": "Chat",
+      "description": "Connect with travelers",
+      "url": "/community",
+      "icons": [{ "src": "/icons/shortcut-community.png", "sizes": "96x96" }]
+    }
+  ],
+  "related_applications": [],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "display_override": ["standalone", "minimal-ui"],
+  "id": "aitravelglobe-pwa"
+}
