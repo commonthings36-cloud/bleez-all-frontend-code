@@ -1,127 +1,181 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Box, Button, Chip, FormControlLabel, List, ListItem, ListItemText, Pagination, Stack, Switch, Typography } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Typography,
+  Stack,
+  Chip,
+  Avatar,
+  CircularProgress,
+  Button,
+} from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import DoneIcon from '@mui/icons-material/Done';
-import { useSnackbar } from 'notistack';
-import { GlassCard } from '@/components/GlassCard';
+
 import { PageHeader } from '@/components/PageHeader';
+import { GlassCard } from '@/components/GlassCard';
 import { EmptyState } from '@/components/EmptyState';
 import { apiClient } from '@/services/apiClient';
 
-interface NotificationItem {
-  id: string;
-  title?: string;
-  message?: string;
-  category?: string;
-  severity?: string;
-  read?: boolean;
-  createdAt?: string;
-}
-
-const PAGE_SIZE = 20;
-
-const severityColor = (s?: string): 'error' | 'warning' | 'info' | 'default' => {
-  switch ((s || '').toLowerCase()) {
-    case 'critical':
-    case 'high':
-      return 'error';
-    case 'medium':
-    case 'warning':
-      return 'warning';
-    case 'low':
-    case 'info':
-      return 'info';
-    default:
-      return 'default';
-  }
-};
-
 export const NotificationsPage: React.FC = () => {
-  const { enqueueSnackbar } = useSnackbar();
-  const [items, setItems] = useState<NotificationItem[]>([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalItems, setTotalItems] = useState(0);
-  const [unreadOnly, setUnreadOnly] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [dispatches, setDispatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const load = useCallback(async () => {
+  const fetchNotifications = () => {
     setLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.get('/intelligence/notifications', { params: { page, pageSize: PAGE_SIZE, unreadOnly } });
-      setItems(res.data?.items ?? []);
-      setTotalItems(res.data?.total_items ?? 0);
-      setTotalPages(Math.max(1, res.data?.total_pages ?? 1));
-    } catch (e: any) {
-      setError(e?.response?.data?.message || 'Could not load notifications.');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, unreadOnly]);
+    Promise.allSettled([
+      apiClient.get('/emergency/panic-events'),
+      apiClient.get('/alerts/all'),
+    ])
+      .then(([panicRes, alertsRes]) => {
+        const panicItems =
+          panicRes.status === 'fulfilled' && Array.isArray(panicRes.value.data)
+            ? panicRes.value.data.map((ev: any) => ({
+              id: ev.id,
+              title: `Emergency SOS Email Dispatch — ${ev.senderName || 'Traveler'}`,
+              subtitle: ev.senderEmail || '',
+              message: ev.note || 'Emergency assistance signal dispatched to trusted contacts.',
+              recipientsCount: ev.recipientCount ?? 0,
+              contacts: ev.emergencyContacts || [],
+              location:
+                ev.locationLabel ||
+                (ev.latitude != null && ev.longitude != null
+                  ? `${ev.latitude}, ${ev.longitude}`
+                  : null),
+              createdAt: ev.createdAt,
+              category: 'SMTP_SOS',
+            }))
+            : [];
+
+        const alertItems =
+          alertsRes.status === 'fulfilled'
+            ? (Array.isArray(alertsRes.value.data)
+              ? alertsRes.value.data
+              : alertsRes.value.data?.alerts || []
+            ).map((a: any, idx: number) => ({
+              id: a.id || `alert-${idx}`,
+              title: a.title || a.type || 'Travel Advisory Notification',
+              subtitle: a.country || '',
+              message: a.description || a.message || '',
+              recipientsCount: 0,
+              contacts: [],
+              location: a.country || null,
+              createdAt: a.timestamp || a.createdAt || null,
+              category: 'ADVISORY',
+            }))
+            : [];
+
+        setDispatches([...panicItems, ...alertItems]);
+      })
+      .finally(() => setLoading(false));
+  };
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const markRead = async (id: string) => {
-    try {
-      await apiClient.patch(`/intelligence/notifications/${id}/read`);
-      setItems((prev) => (unreadOnly ? prev.filter((n) => n.id !== id) : prev.map((n) => (n.id === id ? { ...n, read: true } : n))));
-    } catch (e: any) {
-      enqueueSnackbar(e?.response?.data?.message || 'Could not mark as read', { variant: 'error' });
-    }
-  };
+    fetchNotifications();
+  }, []);
 
   return (
     <Box>
       <PageHeader
-        title="Notifications"
-        subtitle="Alerts generated for your account by the intelligence engine."
-        breadcrumbs={[{ label: 'Notifications' }]}
-        action={<Button variant="outlined" startIcon={<RefreshIcon />} onClick={load} disabled={loading}>Refresh</Button>}
+        title="Notification Center & Broadcasts"
+        subtitle="Real-time SMTP emergency email dispatches and system alert notifications."
+        breadcrumbs={[{ label: 'Notification Center' }]}
+        action={
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={fetchNotifications}
+            sx={{ fontWeight: 700 }}
+          >
+            Refresh Dispatches
+          </Button>
+        }
       />
-      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-      <GlassCard sx={{ p: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 1, pb: 1 }}>
-          <Typography variant="body2" color="text.secondary">{totalItems} notification{totalItems === 1 ? '' : 's'}</Typography>
-          <FormControlLabel
-            control={<Switch checked={unreadOnly} onChange={(e) => { setPage(1); setUnreadOnly(e.target.checked); }} />}
-            label="Unread only"
+      <GlassCard sx={{ p: 3 }}>
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2.5 }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 800 }}>
+              Push Notification & SMTP Dispatch Log
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Live emergency contact emails and platform alerts delivered from backend
+            </Typography>
+          </Box>
+          <Chip
+            label={`${dispatches.length} Total Dispatches`}
+            color="primary"
+            variant="outlined"
+            sx={{ fontWeight: 700 }}
           />
         </Stack>
-        {!loading && items.length === 0 ? (
-          <EmptyState title="You're all caught up" description={unreadOnly ? 'No unread notifications.' : 'No notifications yet.'} />
+
+        {loading && dispatches.length === 0 ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : dispatches.length === 0 ? (
+          <EmptyState
+            title="No Notifications Dispatched Yet"
+            description="Real-time SMTP emergency email dispatches and travel alerts will stream here."
+          />
         ) : (
-          <List disablePadding>
-            {items.map((n) => (
-              <ListItem
-                key={n.id}
-                divider
-                secondaryAction={!n.read && (
-                  <Button size="small" startIcon={<DoneIcon />} onClick={() => markRead(n.id)}>Mark read</Button>
-                )}
-                sx={{ opacity: n.read ? 0.6 : 1, pr: { xs: 2, sm: 18 }, flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
+          <Stack spacing={2}>
+            {dispatches.map((item) => (
+              <GlassCard
+                key={item.id}
+                sx={{
+                  p: 2.5,
+                  borderColor: item.category === 'SMTP_SOS' ? 'error.main' : 'divider',
+                }}
               >
-                <ListItemText
-                  primary={
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                      <Typography sx={{ fontWeight: n.read ? 500 : 800 }}>{n.title || 'Notification'}</Typography>
-                      {n.severity && <Chip size="small" label={n.severity} color={severityColor(n.severity)} />}
-                      {n.category && <Chip size="small" variant="outlined" label={n.category} />}
-                    </Stack>
-                  }
-                  secondary={`${n.message || ''}${n.createdAt ? `  ·  ${new Date(n.createdAt).toLocaleString()}` : ''}`}
-                />
-              </ListItem>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <Avatar
+                      sx={{
+                        bgcolor: item.category === 'SMTP_SOS' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)',
+                        color: item.category === 'SMTP_SOS' ? '#EF4444' : '#6366F1',
+                      }}
+                    >
+                      {item.category === 'SMTP_SOS' ? <MarkEmailReadIcon /> : <WarningAmberIcon />}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                        {item.title}
+                      </Typography>
+                      {item.subtitle && (
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Sender: {item.subtitle}
+                        </Typography>
+                      )}
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        {item.message}
+                      </Typography>
+                      {Array.isArray(item.contacts) && item.contacts.length > 0 && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                          Recipients: {item.contacts.map((c: any) => `${c.name || 'Contact'} (${c.email || c.phone || ''})`).join(', ')}
+                        </Typography>
+                      )}
+                      {item.createdAt && (
+                        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                          Dispatched at: {new Date(item.createdAt).toLocaleString()}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+                  <Chip
+                    label={
+                      item.category === 'SMTP_SOS'
+                        ? `${item.recipientsCount} Email(s) Delivered`
+                        : 'SYSTEM ALERT'
+                    }
+                    color={item.category === 'SMTP_SOS' ? 'success' : 'warning'}
+                    size="small"
+                    sx={{ fontWeight: 700, flexShrink: 0 }}
+                  />
+                </Stack>
+              </GlassCard>
             ))}
-          </List>
-        )}
-        {totalPages > 1 && (
-          <Stack alignItems="center" sx={{ pt: 2 }}>
-            <Pagination count={totalPages} page={page} onChange={(_, p) => setPage(p)} color="primary" />
           </Stack>
         )}
       </GlassCard>

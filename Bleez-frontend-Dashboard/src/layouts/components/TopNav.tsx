@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -29,19 +29,10 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toggleThemeMode } from '@/store/slices/themeSlice';
-import { toggleMobileSidebar } from '@/store/slices/uiSlice';
+import { toggleMobileSidebar, setNotificationsCount } from '@/store/slices/uiSlice';
 import { logout } from '@/store/slices/authSlice';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
-
-interface NotificationItem {
-  id: string;
-  title?: string;
-  message?: string;
-  severity?: string;
-  read?: boolean;
-  createdAt?: string;
-}
 
 export const TopNav: React.FC = () => {
   const theme = useTheme();
@@ -50,25 +41,41 @@ export const TopNav: React.FC = () => {
 
   const { mode } = useAppSelector((state) => state.theme);
   const { user } = useAppSelector((state) => state.auth);
+  const { activeNotificationsCount } = useAppSelector((state) => state.ui);
 
   const [anchorElProfile, setAnchorElProfile] = useState<null | HTMLElement>(null);
   const [anchorElNotif, setAnchorElNotif] = useState<null | HTMLElement>(null);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [notifLoaded, setNotifLoaded] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
-  const loadNotifications = useCallback(() => {
-    apiClient
-      .get('/intelligence/notifications', { params: { page: 1, pageSize: 5 } })
-      .then((res) => setNotifications(res.data?.items ?? []))
-      .catch(() => setNotifications([]))
-      .finally(() => setNotifLoaded(true));
-  }, []);
+  React.useEffect(() => {
+    Promise.allSettled([
+      apiClient.get('/emergency/panic-events'),
+      apiClient.get('/alerts/all'),
+    ]).then(([panicRes, alertsRes]) => {
+      const panicNotifications =
+        panicRes.status === 'fulfilled' && Array.isArray(panicRes.value.data)
+          ? panicRes.value.data.map((ev: any) => ({
+              id: ev.id,
+              title: `SOS Alert: ${ev.senderName || 'Traveler'}`,
+              description: `${ev.note || 'Emergency distress signal'} (${ev.recipientCount ?? 0} email(s) sent)`,
+              country: ev.locationLabel || (ev.latitude != null && ev.longitude != null ? `${ev.latitude}, ${ev.longitude}` : undefined),
+              severity: 'HIGH',
+              type: 'emergency',
+            }))
+          : [];
 
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+      const advisoryNotifications =
+        alertsRes.status === 'fulfilled'
+          ? Array.isArray(alertsRes.value.data)
+            ? alertsRes.value.data
+            : alertsRes.value.data?.alerts || []
+          : [];
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+      const combined = [...panicNotifications, ...advisoryNotifications];
+      setNotifications(combined);
+      dispatch(setNotificationsCount(combined.length));
+    });
+  }, [dispatch]);
 
   const handleOpenProfile = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElProfile(event.currentTarget);
@@ -113,8 +120,8 @@ export const TopNav: React.FC = () => {
           </IconButton>
 
           {/* Notification Menu */}
-          <IconButton color="inherit" onClick={handleOpenNotif} aria-label="Notifications">
-            <Badge badgeContent={unreadCount} color="error">
+          <IconButton color="inherit" onClick={handleOpenNotif}>
+            <Badge badgeContent={activeNotificationsCount} color="error">
               <NotificationsNoneIcon />
             </Badge>
           </IconButton>
@@ -129,54 +136,58 @@ export const TopNav: React.FC = () => {
           >
             <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
               <Typography variant="h6" sx={{ fontSize: '0.95rem', fontWeight: 700 }}>
-                Notifications
+                System Notifications
               </Typography>
             </Box>
             <List disablePadding>
-              {notifLoaded && notifications.length === 0 && (
-                <Box sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">No notifications</Typography>
-                </Box>
-              )}
-              {notifications.map((n) => (
-                <React.Fragment key={n.id}>
-                  <ListItem alignItems="flex-start" sx={{ py: 1.5 }}>
-                    <ListItemAvatar>
-                      <Avatar
-                        sx={{
-                          bgcolor: ['critical', 'high'].includes((n.severity || '').toLowerCase()) ? 'error.main' : 'warning.main',
-                          width: 36,
-                          height: 36,
-                        }}
-                      >
-                        <WarningAmberIcon fontSize="small" />
-                      </Avatar>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {n.title || 'Notification'}
-                        </Typography>
-                      }
-                      secondary={
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          {n.message}
-                          <Typography variant="caption" display="block" color="primary" sx={{ mt: 0.5 }}>
-                            {n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
+              {notifications.length === 0 ? (
+                <ListItem sx={{ py: 2 }}>
+                  <ListItemText
+                    primary={
+                      <Typography variant="body2" color="text.secondary" align="center">
+                        No active notifications
+                      </Typography>
+                    }
+                  />
+                </ListItem>
+              ) : (
+                notifications.slice(0, 5).map((n, idx) => (
+                  <React.Fragment key={n.id || idx}>
+                    <ListItem alignItems="flex-start" sx={{ py: 1.5 }}>
+                      <ListItemAvatar>
+                        <Avatar
+                          sx={{
+                            bgcolor: n.severity === 'HIGH' || n.type === 'emergency' ? 'error.main' : 'warning.main',
+                            width: 36,
+                            height: 36,
+                          }}
+                        >
+                          <WarningAmberIcon fontSize="small" />
+                        </Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {n.title || n.type || 'System Alert'}
                           </Typography>
-                        </Typography>
-                      }
-                    />
-                  </ListItem>
-                  <Divider component="li" />
-                </React.Fragment>
-              ))}
+                        }
+                        secondary={
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            {n.description || n.message || ''}
+                            {n.country && (
+                              <Typography variant="caption" display="block" color="primary" sx={{ mt: 0.5 }}>
+                                {n.country}
+                              </Typography>
+                            )}
+                          </Typography>
+                        }
+                      />
+                    </ListItem>
+                    <Divider component="li" />
+                  </React.Fragment>
+                ))
+              )}
             </List>
-            <Box sx={{ p: 1 }}>
-              <MenuItem onClick={() => { handleCloseNotif(); navigate('/notifications'); }} sx={{ justifyContent: 'center', fontWeight: 700, color: 'primary.main' }}>
-                View all
-              </MenuItem>
-            </Box>
           </Popover>
 
           <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 1.5 }} />
