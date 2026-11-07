@@ -23,6 +23,8 @@ import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LogoutIcon from '@mui/icons-material/Logout';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -223,6 +225,13 @@ export const TopNav: React.FC = () => {
                 {user?.email}
               </Typography>
             </Box>
+            <Divider />
+            <MenuItem onClick={() => { handleCloseProfile(); navigate('/settings'); }}>
+              <PersonOutlineIcon sx={{ mr: 1.5, fontSize: 20 }} /> My Profile
+            </MenuItem>
+            <MenuItem onClick={() => { handleCloseProfile(); navigate('/settings'); }}>
+              <SettingsOutlinedIcon sx={{ mr: 1.5, fontSize: 20 }} /> Settings
+            </MenuItem>
             <Divider />
             <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
               <LogoutIcon sx={{ mr: 1.5, fontSize: 20 }} /> Sign Out

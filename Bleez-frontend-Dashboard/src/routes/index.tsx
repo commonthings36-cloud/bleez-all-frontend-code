@@ -16,13 +16,20 @@ import { Error404Page } from '@/pages/Error404Page';
 import { Error403Page } from '@/pages/Error403Page';
 import { Box, CircularProgress } from '@mui/material';
 
-// Lazy load remaining secondary modules
+// Lazy load secondary modules
 const DestinationsPage = lazy(() => import('@/features/destinations/pages/DestinationsPage').then((m) => ({ default: m.DestinationsPage })));
+const SafetyIntelligencePage = lazy(() => import('@/features/safety/pages/SafetyIntelligencePage').then((m) => ({ default: m.SafetyIntelligencePage })));
+const EmergencySosPage = lazy(() => import('@/features/emergency/pages/EmergencySosPage').then((m) => ({ default: m.EmergencySosPage })));
 const BookingsPage = lazy(() => import('@/features/bookings/pages/BookingsPage').then((m) => ({ default: m.BookingsPage })));
 const PaymentsPage = lazy(() => import('@/features/payments/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
 const ExpensesPage = lazy(() => import('@/features/expenses/pages/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
 const CommunityPage = lazy(() => import('@/features/community/pages/CommunityPage').then((m) => ({ default: m.CommunityPage })));
 const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const ReportsPage = lazy(() => import('@/features/reports/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const SchedulerPage = lazy(() => import('@/features/scheduler/pages/SchedulerPage').then((m) => ({ default: m.SchedulerPage })));
+const AuditLogsPage = lazy(() => import('@/features/audit-logs/pages/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
+const CmsPage = lazy(() => import('@/features/cms/pages/CmsPage').then((m) => ({ default: m.CmsPage })));
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const CampaignsPage = lazy(() => import('@/features/campaigns/pages/CampaignsPage').then((m) => ({ default: m.CampaignsPage })));
 const SubscriptionManagementPage = lazy(() => import('@/features/subscriptions/pages/SubscriptionManagementPage').then((m) => ({ default: m.SubscriptionManagementPage })));
 const WatermarkStudioPage = lazy(() => import('@/features/watermarks/pages/WatermarkStudioPage').then((m) => ({ default: m.WatermarkStudioPage })));
@@ -107,6 +114,14 @@ export const router = createBrowserRouter([
             element: <Suspense fallback={LoadingFallback}><DestinationsPage /></Suspense>,
           },
           {
+            path: 'safety',
+            element: <Suspense fallback={LoadingFallback}><SafetyIntelligencePage /></Suspense>,
+          },
+          {
+            path: 'emergency',
+            element: <Suspense fallback={LoadingFallback}><EmergencySosPage /></Suspense>,
+          },
+          {
             path: 'bookings',
             element: <Suspense fallback={LoadingFallback}><BookingsPage /></Suspense>,
           },
@@ -125,6 +140,26 @@ export const router = createBrowserRouter([
           {
             path: 'notifications',
             element: <Suspense fallback={LoadingFallback}><NotificationsPage /></Suspense>,
+          },
+          {
+            path: 'reports',
+            element: <Suspense fallback={LoadingFallback}><ReportsPage /></Suspense>,
+          },
+          {
+            path: 'scheduler',
+            element: <Suspense fallback={LoadingFallback}><SchedulerPage /></Suspense>,
+          },
+          {
+            path: 'audit-logs',
+            element: <Suspense fallback={LoadingFallback}><AuditLogsPage /></Suspense>,
+          },
+          {
+            path: 'cms',
+            element: <Suspense fallback={LoadingFallback}><CmsPage /></Suspense>,
+          },
+          {
+            path: 'settings',
+            element: <Suspense fallback={LoadingFallback}><SettingsPage /></Suspense>,
           },
           {
             path: 'api-monitoring',
