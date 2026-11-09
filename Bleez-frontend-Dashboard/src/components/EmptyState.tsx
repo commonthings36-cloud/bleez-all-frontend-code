@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Button, Stack } from '@mui/material';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import { EmptyArt } from './Illustrations';
 
 interface EmptyStateProps {
   icon?: React.ReactNode;
@@ -12,7 +12,7 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon = <InboxOutlinedIcon sx={{ fontSize: 64, color: 'text.secondary', opacity: 0.5 }} />,
+  icon,
   title,
   description,
   actionText,
@@ -25,9 +25,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       alignItems="center"
       justifyContent="center"
       spacing={2}
-      sx={{ py: 8, px: 3, textAlign: 'center', width: '100%' }}
+      sx={{ py: 5, px: 3, textAlign: 'center', width: '100%' }}
     >
-      <Box sx={{ p: 2, borderRadius: '50%', backgroundColor: 'action.hover' }}>{icon}</Box>
+      {icon ? <Box sx={{ p: 2, borderRadius: '50%', backgroundColor: 'action.hover' }}>{icon}</Box> : <EmptyArt />}
       <Typography variant="h6" sx={{ fontWeight: 700 }}>
         {title}
       </Typography>

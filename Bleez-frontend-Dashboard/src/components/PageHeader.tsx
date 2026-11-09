@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography, Breadcrumbs, Link, Stack } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { Link as RouterLink } from 'react-router-dom';
+import { HeaderDoodle } from './Illustrations';
 
 interface BreadcrumbItem {
   label: string;
@@ -22,7 +23,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   action,
 }) => {
   return (
-    <Box sx={{ mb: 3 }}>
+    <Box sx={{ mb: 3, position: 'relative' }}>
+      <HeaderDoodle sx={{ position: 'absolute', top: -14, right: { md: 220, lg: 300 }, width: 300, height: 110, display: { xs: 'none', md: 'block' }, opacity: 0.55, zIndex: 0 }} />
       {breadcrumbs && breadcrumbs.length > 0 && (
         <Breadcrumbs
           separator={<NavigateNextIcon fontSize="small" sx={{ color: 'text.secondary' }} />}
@@ -53,7 +55,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         </Breadcrumbs>
       )}
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
+      <Stack sx={{ position: 'relative', zIndex: 1 }} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2}>
         <Box>
           <Typography variant="h4" component="h1" sx={{ fontWeight: 800, tracking: '-0.02em' }}>
             {title}

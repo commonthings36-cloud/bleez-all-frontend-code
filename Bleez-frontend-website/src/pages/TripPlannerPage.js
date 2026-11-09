@@ -28,6 +28,26 @@ import { useDynamicBackground } from '../contexts/DynamicBackgroundContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const PLANNER_STEPS = [
+  { n: 1, label: 'Where & When' },
+  { n: 2, label: 'Travel Style' },
+  { n: 3, label: 'Final Details' },
+];
+
+const SectionTitle = ({ n, icon: Icon, title, hint }) => (
+  <div className="flex items-start gap-3 mb-4">
+    <span className="shrink-0 w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+      <Icon className="w-5 h-5" />
+    </span>
+    <div className="min-w-0">
+      <h3 className="text-base sm:text-lg font-semibold leading-tight">{title}</h3>
+      {hint && <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">{hint}</p>}
+    </div>
+  </div>
+);
+
+const SECTION_CARD = 'rounded-2xl bg-card border border-border shadow-sm p-4 sm:p-6';
+
 const TripPlannerPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -453,36 +473,49 @@ const TripPlannerPage = () => {
         <div className="container-main my-4"><CampaignBanner placement="DESTINATION_PAGE" /></div>
 
         <div className="container-main">
-          {/* Header */}
-          <div className="max-w-3xl mx-auto text-center mb-8 sm:mb-12">
-            <p className="text-xs font-mono uppercase tracking-[0.15em] sm:tracking-[0.2em] text-primary mb-3 sm:mb-4">
-              Step {step} of 3
-            </p>
-            <h1 className="text-2xl sm:text-4xl md:text-5xl font-serif tracking-tight mb-3 sm:mb-4">
-              {step === 1 && 'Where & When'}
-              {step === 2 && 'Your Travel Style'}
-              {step === 3 && 'Final Details'}
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground px-4">
-              {step === 1 && 'Tell us your destination and travel dates'}
-              {step === 2 && 'Help us understand how you like to travel'}
-              {step === 3 && (formData.isBusinessTrip ? 'Business meeting details' : 'Any special preferences?')}
-            </p>
-          </div>
-
-          {/* Progress Bar */}
-          <div className="max-w-xl mx-auto mb-8 sm:mb-12 px-4">
-            <div className="flex gap-2">
-              {[1, 2, 3].map(s => (
-                <div 
-                  key={s}
-                  className={cn(
-                    "flex-1 h-1 rounded-full transition-colors duration-300",
-                    s <= step ? "bg-primary" : "bg-white/10"
+          {/* Stepper */}
+          <ol className="max-w-xl mx-auto mb-8 sm:mb-10 flex items-center" aria-label="Planner progress">
+            {PLANNER_STEPS.map((st, idx) => {
+              const done = st.n < step;
+              const active = st.n === step;
+              return (
+                <li key={st.n} className={cn('flex items-center', idx < PLANNER_STEPS.length - 1 && 'flex-1')}>
+                  <div className="flex flex-col items-center gap-1.5 w-20 sm:w-28">
+                    <span
+                      className={cn(
+                        'w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-all',
+                        done && 'bg-primary border-primary text-primary-foreground',
+                        active && 'border-primary text-primary bg-primary/10 ring-4 ring-primary/15',
+                        !done && !active && 'border-border text-muted-foreground bg-card'
+                      )}
+                      aria-current={active ? 'step' : undefined}
+                    >
+                      {done ? '✓' : st.n}
+                    </span>
+                    <span className={cn('text-[11px] sm:text-xs text-center font-medium', active ? 'text-foreground' : 'text-muted-foreground')}>
+                      {st.label}
+                    </span>
+                  </div>
+                  {idx < PLANNER_STEPS.length - 1 && (
+                    <span className={cn('flex-1 h-0.5 -mt-5 rounded-full transition-colors', done ? 'bg-primary' : 'bg-border')} />
                   )}
-                />
-              ))}
-            </div>
+                </li>
+              );
+            })}
+          </ol>
+
+          {/* Step heading */}
+          <div className="max-w-2xl mx-auto text-center mb-6 sm:mb-8">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2">
+              {step === 1 && 'Where & when are you travelling?'}
+              {step === 2 && 'How do you like to travel?'}
+              {step === 3 && (formData.isBusinessTrip ? 'Business meeting details' : 'Any final details?')}
+            </h2>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {step === 1 && 'Pick your destination, dates and who is coming along.'}
+              {step === 2 && 'Help us understand your style so we can tailor the plan.'}
+              {step === 3 && (formData.isBusinessTrip ? 'Add your meetings so we can plan around them.' : 'Special requests or preferences? Add them here.')}
+            </p>
           </div>
 
           {/* Step Content */}
@@ -490,9 +523,9 @@ const TripPlannerPage = () => {
             {step === 1 && (
               <div className="space-y-6 sm:space-y-8 fade-in">
                 {/* Multiple Destinations */}
-                <div className="space-y-2 sm:space-y-3">
+                <div className={cn(SECTION_CARD, 'space-y-2 sm:space-y-3')}>
                   <div className="flex items-center justify-between">
-                    <Label className="text-base sm:text-lg">Where do you want to go?</Label>
+                    <SectionTitle n={1} icon={MapPin} title="Where do you want to go?" hint="Add up to 5 cities for a multi-city trip" />
                     {formData.destinations.length > 1 && (
                       <span className="text-xs text-primary bg-primary/10 px-2 py-1 rounded-full">
                         Multi-city trip
@@ -550,7 +583,7 @@ const TripPlannerPage = () => {
                   
                   {/* Include Nearby Cities Option */}
                   {formData.destinations.some(d => d && d.trim()) && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 mt-3">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border mt-3">
                       <Checkbox
                         id="includeNearbyCities"
                         checked={formData.includeNearbyCities || false}
@@ -575,20 +608,17 @@ const TripPlannerPage = () => {
                 </div>
 
                 {/* Date Range - Single Calendar with Auto Selection */}
-                <div className="space-y-2 sm:space-y-3">
-                  <Label className="text-base sm:text-lg">Travel Dates</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Click once to select — your date will be automatically saved as Start or End date
-                  </p>
+                <div className={cn(SECTION_CARD, 'space-y-3')}>
+                  <SectionTitle n={2} icon={CalendarIcon} title="Travel dates" hint="Tap your start date, then your end date." />
                   
                   {/* Date Display */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
                     <div 
                       className={cn(
                         "p-3 sm:p-4 rounded-xl border transition-all",
                         formData.startDate 
                           ? "bg-primary/10 border-primary/30" 
-                          : "bg-white/5 border-white/10 border-dashed"
+                          : "bg-card border-border border-dashed"
                       )}
                     >
                       <p className="text-xs text-muted-foreground mb-1">Start Date</p>
@@ -604,7 +634,7 @@ const TripPlannerPage = () => {
                         "p-3 sm:p-4 rounded-xl border transition-all",
                         formData.endDate 
                           ? "bg-primary/10 border-primary/30" 
-                          : "bg-white/5 border-white/10 border-dashed"
+                          : "bg-card border-border border-dashed"
                       )}
                     >
                       <p className="text-xs text-muted-foreground mb-1">End Date</p>
@@ -618,7 +648,7 @@ const TripPlannerPage = () => {
                   </div>
 
                   {/* Single Calendar */}
-                  <div className="rounded-xl bg-white/5 border border-white/10 p-3 sm:p-4">
+                  <div className="rounded-xl bg-muted/40 border border-border p-3 sm:p-4 flex flex-col items-center">
                     <Calendar
                       mode="single"
                       selected={formData.endDate || formData.startDate}
@@ -671,7 +701,7 @@ const TripPlannerPage = () => {
                     
                     {/* Trip Duration */}
                     {formData.startDate && formData.endDate && (
-                      <div className="mt-3 pt-3 border-t border-white/10 text-center">
+                      <div className="mt-3 pt-3 border-t border-border text-center">
                         <p className="text-sm text-primary font-medium">
                           {Math.ceil((formData.endDate - formData.startDate) / (1000 * 60 * 60 * 24))} days trip
                         </p>
@@ -694,13 +724,13 @@ const TripPlannerPage = () => {
                 </div>
 
                 {/* Travelers */}
-                <div className="space-y-3">
-                  <Label className="text-lg">Number of Travelers</Label>
-                  <div className="flex items-center gap-4">
+                <div className={cn(SECTION_CARD, 'space-y-3')}>
+                  <SectionTitle n={3} icon={Users} title="Who's travelling?" hint="Number of travellers including you." />
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-12 w-12 rounded-xl bg-white/5 border-white/10"
+                      className="h-12 w-12 rounded-xl bg-card border-border"
                       onClick={() => setFormData(prev => ({ ...prev, travelersCount: Math.max(1, prev.travelersCount - 1) }))}
                       data-testid="btn-travelers-minus"
                     >
@@ -710,7 +740,7 @@ const TripPlannerPage = () => {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-12 w-12 rounded-xl bg-white/5 border-white/10"
+                      className="h-12 w-12 rounded-xl bg-card border-border"
                       onClick={() => setFormData(prev => ({ ...prev, travelersCount: prev.travelersCount + 1 }))}
                       data-testid="btn-travelers-plus"
                     >
@@ -724,7 +754,7 @@ const TripPlannerPage = () => {
                 </div>
 
                 {/* Traveling with Children - PRIMARY FILTER */}
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                <div className="p-4 rounded-2xl bg-card border border-border">
                   <div className="flex items-start gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
@@ -752,15 +782,15 @@ const TripPlannerPage = () => {
 
                   {/* Children Ages - Inline when checked */}
                   {formData.hasChildren && (
-                    <div className="mt-4 pt-4 border-t border-white/10">
+                    <div className="mt-4 pt-4 border-t border-border">
                       <div className="flex flex-wrap items-center gap-3">
                         <span className="text-sm text-muted-foreground">Ages:</span>
                         {formData.childrenAges.map((age, idx) => (
-                          <div key={idx} className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+                          <div key={idx} className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1">
                             <button
                               type="button"
                               onClick={() => updateChildAge(idx, Math.max(0, age - 1))}
-                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/20 transition-colors"
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -768,7 +798,7 @@ const TripPlannerPage = () => {
                             <button
                               type="button"
                               onClick={() => updateChildAge(idx, Math.min(17, age + 1))}
-                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-white/20 transition-colors"
+                              className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -786,7 +816,7 @@ const TripPlannerPage = () => {
                           variant="outline"
                           size="sm"
                           onClick={addChildAge}
-                          className="h-8 px-3 bg-white/5 border-white/20"
+                          className="h-8 px-3 bg-card border-border"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           Add
@@ -836,7 +866,7 @@ const TripPlannerPage = () => {
                           "p-6 rounded-2xl border transition-all duration-300 text-left",
                           formData.tripType === type.id
                             ? "border-primary bg-primary/10 neon-glow"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
+                            : "border-border bg-card hover:border-border"
                         )}
                         data-testid={`trip-type-${type.id}`}
                       >
@@ -863,7 +893,7 @@ const TripPlannerPage = () => {
                           "px-4 py-2 rounded-full text-sm transition-all duration-300",
                           formData.interests.includes(interest)
                             ? "bg-primary text-primary-foreground"
-                            : "bg-white/5 border border-white/10 hover:bg-white/10"
+                            : "bg-card border border-border hover:bg-muted"
                         )}
                         data-testid={`interest-${interest.toLowerCase().replace(/\s+/g, '-')}`}
                       >
@@ -885,7 +915,7 @@ const TripPlannerPage = () => {
                           "p-4 rounded-xl border transition-all duration-300 text-center",
                           formData.budgetRange === option.id
                             ? "border-primary bg-primary/10"
-                            : "border-white/10 bg-white/5 hover:border-white/20"
+                            : "border-border bg-card hover:border-border"
                         )}
                         data-testid={`budget-${option.id}`}
                       >
@@ -901,7 +931,7 @@ const TripPlannerPage = () => {
             {step === 3 && (
               <div className="space-y-8 fade-in">
                 {/* Business Mode Toggle */}
-                <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                <div className="p-6 rounded-2xl bg-card border border-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Briefcase className={cn("w-5 h-5", formData.isBusinessTrip ? "text-primary" : "text-muted-foreground")} />
@@ -943,7 +973,7 @@ const TripPlannerPage = () => {
                             notes: ''
                           }]
                         }))}
-                        className="bg-white/5 border-white/20 text-xs"
+                        className="bg-card border-border text-xs"
                         data-testid="btn-add-meeting"
                       >
                         <Plus className="w-3 h-3 mr-1" />
@@ -961,7 +991,7 @@ const TripPlannerPage = () => {
                           key={meeting.id} 
                           className={cn(
                             "p-4 rounded-xl border transition-all",
-                            idx === 0 ? "bg-white/5 border-primary/30" : "bg-white/3 border-white/10"
+                            idx === 0 ? "bg-card border-primary/30" : "bg-white/3 border-border"
                           )}
                         >
                           <div className="flex items-center justify-between mb-4">
@@ -1003,7 +1033,7 @@ const TripPlannerPage = () => {
                                     setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                   }}
                                   placeholder="e.g., Quarterly review..."
-                                  className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                  className="bg-card border-border rounded-lg h-9 text-sm"
                                   data-testid={`input-meeting-${idx}-agenda`}
                                 />
                               </div>
@@ -1020,7 +1050,7 @@ const TripPlannerPage = () => {
                                     setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                   }}
                                   placeholder="e.g., Conference Room A..."
-                                  className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                  className="bg-card border-border rounded-lg h-9 text-sm"
                                   data-testid={`input-meeting-${idx}-location`}
                                 />
                               </div>
@@ -1040,7 +1070,7 @@ const TripPlannerPage = () => {
                                     newMeetings[idx].date = e.target.value;
                                     setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                   }}
-                                  className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                  className="bg-card border-border rounded-lg h-9 text-sm"
                                   data-testid={`input-meeting-${idx}-date`}
                                 />
                               </div>
@@ -1057,7 +1087,7 @@ const TripPlannerPage = () => {
                                     newMeetings[idx].time = e.target.value;
                                     setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                   }}
-                                  className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                  className="bg-card border-border rounded-lg h-9 text-sm"
                                   data-testid={`input-meeting-${idx}-time`}
                                 />
                               </div>
@@ -1071,10 +1101,10 @@ const TripPlannerPage = () => {
                                     setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                   }}
                                 >
-                                  <SelectTrigger className="bg-white/5 border-white/10 rounded-lg h-9 text-sm" data-testid={`select-meeting-${idx}-duration`}>
+                                  <SelectTrigger className="bg-card border-border rounded-lg h-9 text-sm" data-testid={`select-meeting-${idx}-duration`}>
                                     <SelectValue placeholder="Select" />
                                   </SelectTrigger>
-                                  <SelectContent className="glass border-white/10">
+                                  <SelectContent className="glass border-border">
                                     <SelectItem value="30min">30 min</SelectItem>
                                     <SelectItem value="1hr">1 hour</SelectItem>
                                     <SelectItem value="2hr">2 hours</SelectItem>
@@ -1101,7 +1131,7 @@ const TripPlannerPage = () => {
                                       setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                     }}
                                     placeholder="e.g., John, Client Team..."
-                                    className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                    className="bg-card border-border rounded-lg h-9 text-sm"
                                     data-testid={`input-meeting-${idx}-participants`}
                                   />
                                 </div>
@@ -1115,7 +1145,7 @@ const TripPlannerPage = () => {
                                       setFormData(prev => ({ ...prev, meetings: newMeetings }));
                                     }}
                                     placeholder="Any special notes..."
-                                    className="bg-white/5 border-white/10 rounded-lg h-9 text-sm"
+                                    className="bg-card border-border rounded-lg h-9 text-sm"
                                     data-testid={`input-meeting-${idx}-notes`}
                                   />
                                 </div>
@@ -1163,11 +1193,11 @@ const TripPlannerPage = () => {
                             <span className="text-sm text-muted-foreground w-16 sm:w-20 shrink-0">Child {idx + 1}</span>
                             
                             {/* Mobile-friendly age selector with stepper buttons */}
-                            <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl p-1">
+                            <div className="flex items-center gap-1 bg-card border border-border rounded-xl p-1">
                               <button
                                 type="button"
                                 onClick={() => updateChildAge(idx, Math.max(0, age - 1))}
-                                className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                                className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted active:bg-white/30 transition-colors touch-manipulation"
                                 disabled={age <= 0}
                                 aria-label="Decrease age"
                               >
@@ -1193,7 +1223,7 @@ const TripPlannerPage = () => {
                               <button
                                 type="button"
                                 onClick={() => updateChildAge(idx, Math.min(17, age + 1))}
-                                className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:bg-white/30 transition-colors touch-manipulation"
+                                className="w-10 h-10 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-muted hover:bg-muted active:bg-white/30 transition-colors touch-manipulation"
                                 disabled={age >= 17}
                                 aria-label="Increase age"
                               >
@@ -1220,7 +1250,7 @@ const TripPlannerPage = () => {
                           variant="outline"
                           size="sm"
                           onClick={addChildAge}
-                          className="bg-white/5 border-white/10 h-11 sm:h-9 touch-manipulation"
+                          className="bg-card border-border h-11 sm:h-9 touch-manipulation"
                           data-testid="btn-add-child"
                         >
                           <Plus className="w-4 h-4 mr-2" />
@@ -1241,13 +1271,13 @@ const TripPlannerPage = () => {
                     value={formData.specialRequirements}
                     onChange={(e) => setFormData(prev => ({ ...prev, specialRequirements: e.target.value }))}
                     placeholder="Dietary restrictions, accessibility needs, specific interests..."
-                    className="min-h-[100px] bg-white/5 border-white/10 rounded-xl"
+                    className="min-h-[100px] bg-card border-border rounded-xl"
                     data-testid="textarea-requirements"
                   />
                 </div>
 
                 {/* Summary */}
-                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 space-y-4">
+                <div className="p-6 rounded-2xl bg-card border border-border space-y-4">
                   <h3 className="font-medium text-lg">Trip Summary</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>

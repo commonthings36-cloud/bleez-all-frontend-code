@@ -74,6 +74,12 @@ export const customComponents: Components<Theme> = {
       },
       containedPrimary: {
         background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+        // Disabled keeps the gradient, so keep the label white (just softer) to stay readable.
+        '&.Mui-disabled': {
+          background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+          color: 'rgba(255, 255, 255, 0.9)',
+          opacity: 0.55,
+        },
       },
     },
   },

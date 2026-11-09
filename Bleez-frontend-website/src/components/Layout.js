@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -23,6 +23,15 @@ export const Navbar = () => {
   const { theme, toggleTheme, isLight } = useTheme();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [mobileMenuOpen]);
 
   const handleLogout = async () => {
     await logout();
@@ -246,7 +255,7 @@ export const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex items-center gap-1 ml-auto md:hidden">
             {/* Mobile Theme Toggle */}
             <button
               onClick={toggleTheme}
@@ -298,7 +307,39 @@ export const Navbar = () => {
           WebkitOverflowScrolling: 'touch'
         }}
         data-testid="mobile-menu-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Main menu"
       >
+        {/* Overlay header with a visible close button */}
+        <div
+          className={cn(
+            "fixed top-0 left-0 right-0 flex items-center justify-between px-4 h-14 border-b",
+            isLight ? "bg-white border-gray-200" : "bg-[#050810] border-white/10"
+          )}
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 1 }}
+        >
+          <Link to="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl gold-gradient flex items-center justify-center">
+              <Plane className={cn("w-5 h-5", isLight ? "text-white" : "text-background")} />
+            </div>
+            <span className="text-lg font-semibold tracking-tight">
+              <span className={isLight ? "text-gray-900" : ""}>Bleez</span><span className="gold-text">.AI</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close menu"
+            data-testid="mobile-menu-close"
+            className={cn(
+              "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
+              isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-800" : "bg-white/10 hover:bg-white/20 text-white"
+            )}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
         <div className="flex flex-col gap-2 p-4 min-h-full">
           {/* Primary CTAs at top */}
           <Link 

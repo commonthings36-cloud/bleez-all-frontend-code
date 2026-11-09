@@ -27,6 +27,10 @@ import {
   Alert,
   Card,
   CardContent,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  keyframes,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import {
@@ -48,6 +52,9 @@ import {
   Star,
   Refresh,
   Close,
+  ViewModule,
+  TableRows,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 
@@ -493,111 +500,91 @@ export const SubscriptionManagementPage: React.FC = () => {
     },
   ];
 
+  // ───────── helpers for redesigned views (backend may return snake_case or camelCase) ─────────
+  const pick = (row: any, a: string, b: string) => row?.[a] ?? row?.[b];
+  const planPrice = (row: any) => {
+    const usd = (pick(row, 'pricing_matrix', 'pricingMatrix') || {}).USD || {};
+    return { monthly: usd.monthly ?? 0, yearly: usd.yearly ?? 0, trial: usd.trial_days ?? usd.trialDays ?? 0 };
+  };
+  const planAiQuota = (row: any) => {
+    const limits = pick(row, 'usage_limits', 'usageLimits') || [];
+    const l = limits.find((x: any) => (x.limit_code || x.limitCode) === 'AI_GENERATIONS');
+    if (!l) return 'Unlimited';
+    const unlimited = l.unlimited ?? l.isUnlimited;
+    const v = l.limit_value ?? l.limitValue;
+    return unlimited ? 'Unlimited' : `${Number(v ?? 0).toLocaleString()} ${l.period === 'LIFETIME' ? 'lifetime' : '/ mo'}`;
+  };
+  const planFeatureCount = (row: any) => (row.features || []).filter((f: any) => f.enabled).length;
+  const planBullets = (row: any): string[] => pick(row, 'marketing_bullets', 'marketingBullets') || [];
+  const planGradient = (row: any) => pick(row, 'theme_gradient', 'themeGradient') || 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)';
+  const statusColor = (s?: string): 'success' | 'warning' | 'error' | 'default' =>
+    s === 'ACTIVE' || s === 'COMPLETED' || s === 'SUCCESS' || s === 'VERIFIED' ? 'success'
+      : s === 'DRAFT' || s === 'TRIALING' || s === 'GRACE_PERIOD' || s === 'PENDING' ? 'warning'
+        : s === 'CANCELLED' || s === 'EXPIRED' || s === 'REVOKED' || s === 'FAILED' || s === 'REFUNDED' ? 'error' : 'default';
+  const fmtDate = (v?: string) => (v && !isNaN(new Date(v).getTime()) ? new Date(v).toLocaleString() : '—');
+
+  const [planView, setPlanView] = useState<'cards' | 'table'>('cards');
+  const [planQuery, setPlanQuery] = useState('');
+  const [planStatus, setPlanStatus] = useState<'ALL' | 'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ALL');
+  const visiblePlans = plans.filter((p: any) => {
+    if (planStatus !== 'ALL' && (p.status || 'ACTIVE') !== planStatus) return false;
+    const q = planQuery.trim().toLowerCase();
+    return !q || [p.name, p.code, p.audience, p.tagline].some((v: any) => (v || '').toLowerCase().includes(q));
+  });
+
+  const kpis = [
+    { label: 'Estimated MRR', value: `$${(analytics?.estimatedMRR || 0).toLocaleString()}`, color: '#10B981', icon: <MonetizationOn /> },
+    { label: 'Active subscribers', value: (analytics?.activeSubscribers || 0).toLocaleString(), color: '#7C3AED', icon: <People /> },
+    { label: 'Explorer users', value: (analytics?.explorerSubscribers || 0).toLocaleString(), color: '#6366F1', icon: <Flight /> },
+    { label: 'Business accounts', value: (analytics?.businessSubscribers || 0).toLocaleString(), color: '#F59E0B', icon: <Shield /> },
+    { label: 'Free starters', value: (analytics?.freeUsers || 0).toLocaleString(), color: '#06B6D4', icon: <AutoAwesome /> },
+  ];
+
+  const gridSx = {
+    border: 0,
+    '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 800 },
+    '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
+  };
+
+  const pageFade = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
+    <Box>
       <PageHeader
         title="Subscription & Monetization Studio"
-        subtitle="100% configuration-driven subscription plans, dynamic feature catalog, resource quotas, and in-app purchase mappings"
+        subtitle="Configuration-driven plans, feature catalog, resource quotas and in-app purchase mappings."
+        breadcrumbs={[{ label: 'Subscription Studio' }]}
         action={
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<Add />}
-            onClick={handleOpenCreatePlan}
-            sx={{ fontWeight: 800, borderRadius: '10px' }}
-          >
-            Create Custom Plan
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            <Button variant="outlined" startIcon={<Refresh />} onClick={loadData} disabled={loading}>Refresh</Button>
+            <Button variant="contained" startIcon={<Add />} onClick={handleOpenCreatePlan} sx={{ fontWeight: 800 }}>Create Custom Plan</Button>
+          </Stack>
         }
       />
 
-      {/* Analytics KPI Row */}
-      <Grid container spacing={2.5} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <GlassCard sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                  ESTIMATED MRR
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: 'success.main', mt: 0.5 }}>
-                  ${analytics?.estimatedMRR || 0}
-                </Typography>
+      {/* 5 equal KPI cards */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2.5, mb: 3.5 }}>
+        {kpis.map((k, i) => (
+          <GlassCard key={k.label} sx={{ p: 2.25, height: 112, display: 'flex', alignItems: 'center', animation: `${pageFade} .5s ${i * 0.07}s ease-out both`, '&:hover': { transform: 'translateY(-4px)', borderColor: k.color, boxShadow: `0 14px 30px -12px ${k.color}77` } }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1} sx={{ width: '100%' }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="caption" color="text.secondary" noWrap sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>{k.label}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: k.color, letterSpacing: '-0.02em', lineHeight: 1.3 }}>{k.value}</Typography>
               </Box>
-              <MonetizationOn sx={{ fontSize: 36, color: 'success.main', opacity: 0.8 }} />
+              <Box sx={{ width: 46, height: 46, borderRadius: '14px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${k.color}, ${k.color}bb)`, boxShadow: `0 10px 20px -8px ${k.color}` }}>{k.icon}</Box>
             </Stack>
           </GlassCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <GlassCard sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                  ACTIVE SUBSCRIBERS
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, mt: 0.5 }}>
-                  {analytics?.activeSubscribers || 0}
-                </Typography>
-              </Box>
-              <People sx={{ fontSize: 36, color: 'primary.main', opacity: 0.8 }} />
-            </Stack>
-          </GlassCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <GlassCard sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                  EXPLORER USERS
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: 'primary.main', mt: 0.5 }}>
-                  {analytics?.explorerSubscribers || 0}
-                </Typography>
-              </Box>
-              <Flight sx={{ fontSize: 36, color: 'primary.main', opacity: 0.8 }} />
-            </Stack>
-          </GlassCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <GlassCard sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                  BUSINESS ACCOUNTS
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: 'warning.main', mt: 0.5 }}>
-                  {analytics?.businessSubscribers || 0}
-                </Typography>
-              </Box>
-              <Shield sx={{ fontSize: 36, color: 'warning.main', opacity: 0.8 }} />
-            </Stack>
-          </GlassCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2.4}>
-          <GlassCard sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                  FREE STARTERS
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 900, color: 'text.secondary', mt: 0.5 }}>
-                  {analytics?.freeUsers || 0}
-                </Typography>
-              </Box>
-              <AutoAwesome sx={{ fontSize: 36, color: 'text.secondary', opacity: 0.8 }} />
-            </Stack>
-          </GlassCard>
-        </Grid>
-      </Grid>
+        ))}
+      </Box>
 
       {/* Tabs */}
-      <GlassCard sx={{ mb: 3 }}>
+      <GlassCard sx={{ mb: 3, animation: `${pageFade} .6s .3s ease-out both` }}>
         <Tabs
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+          sx={{ borderBottom: 1, borderColor: 'divider', px: 2, '& .MuiTab-root': { fontWeight: 700, textTransform: 'none', minHeight: 56 } }}
         >
           <Tab icon={<Tune fontSize="small" />} iconPosition="start" label={`Subscription Plans (${plans.length})`} />
           <Tab icon={<Speed fontSize="small" />} iconPosition="start" label="Live Paywall Simulator" />
@@ -609,24 +596,121 @@ export const SubscriptionManagementPage: React.FC = () => {
 
         {loading && <LinearProgress />}
 
-        {/* Tab 0: Plans DataGrid */}
+        {/* Tab 0: Plans */}
         {activeTab === 0 && (
-          <Box sx={{ width: '100%', p: 2 }}>
-            <DataGrid
-              rows={plans}
-              columns={planColumns}
-              getRowId={(row) => row.id || row.code}
-              getRowHeight={() => 'auto'}
-              pageSizeOptions={[5, 10, 20]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              disableRowSelectionOnClick
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1.5,
-                  alignItems: 'center',
-                },
-              }}
-            />
+          <Box sx={{ p: 2.5 }}>
+            <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1.5} alignItems="center" sx={{ mb: 2.5 }}>
+              <TextField
+                size="small" placeholder="Search plan name, code, audience…" value={planQuery} onChange={(e) => setPlanQuery(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 320 } }}
+                InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+              />
+              <ToggleButtonGroup size="small" exclusive value={planStatus} onChange={(_, v) => v && setPlanStatus(v)} color="primary">
+                {(['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as const).map((s) => (
+                  <ToggleButton key={s} value={s} sx={{ px: 2, fontWeight: 700 }}>{s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}</ToggleButton>
+                ))}
+              </ToggleButtonGroup>
+              <Box sx={{ flexGrow: 1 }} />
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>{visiblePlans.length} of {plans.length} plans</Typography>
+              <ToggleButtonGroup size="small" exclusive value={planView} onChange={(_, v) => v && setPlanView(v)}>
+                <ToggleButton value="cards" aria-label="Card view"><ViewModule fontSize="small" /></ToggleButton>
+                <ToggleButton value="table" aria-label="Table view"><TableRows fontSize="small" /></ToggleButton>
+              </ToggleButtonGroup>
+            </Stack>
+
+            {visiblePlans.length === 0 ? (
+              <Box sx={{ py: 6, textAlign: 'center' }}>
+                <Typography sx={{ fontWeight: 800 }}>{plans.length ? 'No plans match your filters' : 'No plans created yet'}</Typography>
+                <Typography variant="body2" color="text.secondary">{plans.length ? 'Try clearing the search or status filter.' : 'Use "Create Custom Plan" to add your first plan.'}</Typography>
+              </Box>
+            ) : planView === 'cards' ? (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' }, gap: 2.5 }}>
+                {visiblePlans.map((p: any, i) => {
+                  const price = planPrice(p);
+                  const bullets = planBullets(p);
+                  const badge = pick(p, 'badge_text', 'badgeText');
+                  const status = p.status || 'ACTIVE';
+                  return (
+                    <Box
+                      key={p.id || p.code}
+                      sx={{
+                        display: 'flex', flexDirection: 'column', borderRadius: '18px', overflow: 'hidden', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper',
+                        animation: `${pageFade} .5s ${i * 0.06}s ease-out both`, transition: 'all .25s',
+                        '&:hover': { transform: 'translateY(-5px)', boxShadow: '0 20px 40px -18px rgba(124,58,237,.45)' },
+                      }}
+                    >
+                      <Box sx={{ p: 2.5, color: '#fff', background: planGradient(p), position: 'relative', minHeight: 132 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Box sx={{ width: 42, height: 42, borderRadius: '12px', bgcolor: 'rgba(255,255,255,.22)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800 }}>
+                            {(p.code || '??').substring(0, 2).toUpperCase()}
+                          </Box>
+                          <Stack direction="row" spacing={0.75}>
+                            {badge && <Chip label={badge} size="small" sx={{ bgcolor: '#fff', color: '#111', fontWeight: 800, height: 22 }} />}
+                            <Chip label={status} size="small" sx={{ bgcolor: 'rgba(0,0,0,.28)', color: '#fff', fontWeight: 800, height: 22 }} />
+                          </Stack>
+                        </Stack>
+                        <Typography noWrap sx={{ mt: 1.5, fontWeight: 800, fontSize: '1.2rem', color: '#fff' }}>{p.name || '—'}</Typography>
+                        <Typography noWrap sx={{ fontSize: '0.8rem', opacity: 0.85, color: '#fff' }}>{p.tagline || `${p.code} · v${p.version || 1}`}</Typography>
+                      </Box>
+
+                      <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                        <Stack direction="row" alignItems="baseline" spacing={0.75}>
+                          <Typography sx={{ fontSize: '1.9rem', fontWeight: 800, letterSpacing: '-0.02em', color: price.monthly === 0 ? 'text.secondary' : 'success.main' }}>
+                            ${price.monthly}
+                          </Typography>
+                          <Typography color="text.secondary" sx={{ fontWeight: 600 }}>/ month</Typography>
+                          <Box sx={{ flexGrow: 1 }} />
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>${price.yearly} / yr</Typography>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5, mb: 2 }}>
+                          <Chip size="small" label={p.audience || 'CONSUMER'} color={p.audience === 'B2B' ? 'warning' : 'primary'} sx={{ fontWeight: 700 }} />
+                          <Chip size="small" icon={<AutoAwesome fontSize="small" />} variant="outlined" color="info" label={planAiQuota(p)} sx={{ fontWeight: 700 }} />
+                          {price.trial > 0 && <Chip size="small" variant="outlined" color="success" label={`${price.trial}d trial`} sx={{ fontWeight: 700 }} />}
+                        </Stack>
+
+                        {/* fixed-height list so every card is the same size */}
+                        <Stack spacing={0.75} sx={{ minHeight: 84, flexGrow: 1 }}>
+                          {bullets.slice(0, 3).map((b, bi) => (
+                            <Stack key={bi} direction="row" spacing={1} alignItems="center">
+                              <CheckCircle sx={{ fontSize: 17, color: 'success.main', flexShrink: 0 }} />
+                              <Typography noWrap variant="body2" sx={{ fontWeight: 500 }}>{b}</Typography>
+                            </Stack>
+                          ))}
+                          {bullets.length === 0 && <Typography variant="body2" color="text.disabled">No marketing bullets</Typography>}
+                        </Stack>
+
+                        <Divider sx={{ my: 1.5 }} />
+                        <Stack direction="row" justifyContent="space-between" alignItems="center">
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                            {planFeatureCount(p)} features · v{p.version || 1}
+                          </Typography>
+                          <Stack direction="row" spacing={0.25}>
+                            <Tooltip title="Edit Plan (creates new version)"><IconButton size="small" color="primary" onClick={() => handleOpenEditPlan(p)}><Edit fontSize="small" /></IconButton></Tooltip>
+                            <Tooltip title="Clone into new draft"><IconButton size="small" color="secondary" onClick={() => handleClonePlan(p)}><ContentCopy fontSize="small" /></IconButton></Tooltip>
+                            <Tooltip title="Archive plan"><IconButton size="small" color="error" onClick={() => handleArchivePlan(p)}><Archive fontSize="small" /></IconButton></Tooltip>
+                          </Stack>
+                        </Stack>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            ) : (
+              <Box sx={{ width: '100%', overflowX: 'auto' }}>
+                <DataGrid
+                  rows={visiblePlans}
+                  columns={planColumns}
+                  getRowId={(row) => row.id || row.code}
+                  getRowHeight={() => 'auto'}
+                  autoHeight
+                  pageSizeOptions={[5, 10, 20]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                  disableRowSelectionOnClick
+                  sx={{ ...gridSx, minWidth: 1050, '& .MuiDataGrid-cell': { py: 1.5, display: 'flex', alignItems: 'center' } }}
+                />
+              </Box>
+            )}
           </Box>
         )}
 
@@ -781,136 +865,108 @@ export const SubscriptionManagementPage: React.FC = () => {
 
         {/* Tab 2: Feature Catalog */}
         {activeTab === 2 && (
-          <Box sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                Dynamic Feature Registry
-              </Typography>
-              <Button
-                variant="outlined"
-                startIcon={<Add />}
-                onClick={() => setFeatureDialogOpen(true)}
-                sx={{ fontWeight: 800 }}
-              >
-                Register New Feature
-              </Button>
+          <Box sx={{ p: 2.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2.5 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>Dynamic Feature Registry</Typography>
+                <Typography variant="body2" color="text.secondary">Capabilities that can be switched on per plan</Typography>
+              </Box>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => setFeatureDialogOpen(true)} sx={{ fontWeight: 800 }}>Register New Feature</Button>
             </Stack>
-            <Grid container spacing={2}>
-              {features.map((f) => (
-                <Grid item xs={12} sm={6} md={4} key={f.code}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                      <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                          {f.name}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Key: <strong>{f.code}</strong>
-                        </Typography>
-                      </Box>
-                      <Chip label={f.category} size="small" variant="outlined" sx={{ fontWeight: 700 }} />
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
-                      {f.description}
-                    </Typography>
-                  </Paper>
-                </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 2 }}>
+              {features.map((f, i) => (
+                <Box key={f.code} sx={{ p: 2.25, height: 150, display: 'flex', flexDirection: 'column', borderRadius: '16px', border: '1px solid', borderColor: 'divider', borderLeft: '3px solid #7C3AED', animation: `${pageFade} .45s ${i * 0.04}s ease-out both`, transition: 'all .2s', '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 28px -14px rgba(124,58,237,.5)' } }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography noWrap sx={{ fontWeight: 800 }}>{f.name}</Typography>
+                      <Typography noWrap variant="caption" color="text.secondary">Key: <strong>{f.code}</strong></Typography>
+                    </Box>
+                    <Chip label={String(f.category).replace(/_/g, ' ')} size="small" variant="outlined" sx={{ fontWeight: 700, flexShrink: 0, maxWidth: 140 }} />
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.82rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {f.description || 'No description'}
+                  </Typography>
+                </Box>
               ))}
-            </Grid>
+              {features.length === 0 && <Typography color="text.secondary">No features registered yet.</Typography>}
+            </Box>
           </Box>
         )}
 
         {/* Tab 3: Metric Quotas */}
         {activeTab === 3 && (
-          <Box sx={{ p: 2 }}>
-            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                Dynamic Usage Metric Quotas
-              </Typography>
-              <Button
-                variant="outlined"
-                startIcon={<Add />}
-                onClick={() => setMetricDialogOpen(true)}
-                sx={{ fontWeight: 800 }}
-              >
-                Define New Metric
-              </Button>
+          <Box sx={{ p: 2.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2.5 }}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>Dynamic Usage Metric Quotas</Typography>
+                <Typography variant="body2" color="text.secondary">Measurable limits that plans can enforce</Typography>
+              </Box>
+              <Button variant="outlined" startIcon={<Add />} onClick={() => setMetricDialogOpen(true)} sx={{ fontWeight: 800 }}>Define New Metric</Button>
             </Stack>
-            <Grid container spacing={2}>
-              {metrics.map((m) => (
-                <Grid item xs={12} sm={6} md={3} key={m.code}>
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: '12px' }}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      {m.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Key: <strong>{m.code}</strong>
-                    </Typography>
-                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                      <Chip label={`Unit: ${m.unit}`} size="small" color="primary" variant="outlined" />
-                      <Chip label={m.defaultPeriod} size="small" />
-                    </Stack>
-                  </Paper>
-                </Grid>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+              {metrics.map((m, i) => (
+                <Box key={m.code} sx={{ p: 2.25, height: 140, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: '16px', border: '1px solid', borderColor: 'divider', borderTop: '3px solid #06B6D4', animation: `${pageFade} .45s ${i * 0.04}s ease-out both`, transition: 'all .2s', '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 28px -14px rgba(6,182,212,.6)' } }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography noWrap sx={{ fontWeight: 800 }}>{m.name}</Typography>
+                    <Typography noWrap variant="caption" color="text.secondary">Key: <strong>{m.code}</strong></Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip label={`Unit: ${m.unit}`} size="small" color="primary" variant="outlined" sx={{ fontWeight: 700 }} />
+                    <Chip label={m.defaultPeriod} size="small" sx={{ fontWeight: 700 }} />
+                  </Stack>
+                </Box>
               ))}
-            </Grid>
+              {metrics.length === 0 && <Typography color="text.secondary">No metrics defined yet.</Typography>}
+            </Box>
           </Box>
         )}
 
         {/* Tab 4: Subscribers */}
         {activeTab === 4 && (
-          <Box sx={{ height: 450, width: '100%', p: 2 }}>
+          <Box sx={{ p: 2.5, width: '100%', overflowX: 'auto' }}>
             <DataGrid
               rows={subscribers}
               columns={[
-                { field: 'userId', headerName: 'User ID', width: 220 },
-                { field: 'planCode', headerName: 'Plan', width: 140 },
-                { field: 'platform', headerName: 'Platform / Store', width: 180 },
-                {
-                  field: 'status',
-                  headerName: 'Subscription Status',
-                  width: 140,
-                  renderCell: (params) => (
-                    <Chip label={params.value} color="success" size="small" sx={{ fontWeight: 800 }} />
-                  ),
-                },
-                { field: 'currentPeriodEndsAt', headerName: 'Renews / Expires At', width: 220 },
+                { field: 'userId', headerName: 'User ID', width: 240 },
+                { field: 'planCode', headerName: 'Plan', width: 150, renderCell: (p) => <Chip label={p.value} size="small" color="primary" variant="outlined" sx={{ fontWeight: 700 }} /> },
+                { field: 'platform', headerName: 'Platform', width: 130, valueFormatter: (v: string) => v || '—' },
+                { field: 'store', headerName: 'Store', width: 130, valueFormatter: (v: string) => v || '—' },
+                { field: 'isAutoRenewing', headerName: 'Auto-renew', width: 130, valueFormatter: (v: boolean) => (v ? 'Yes' : 'No') },
+                { field: 'status', headerName: 'Status', width: 150, renderCell: (p) => <Chip label={p.value} color={statusColor(p.value)} size="small" sx={{ fontWeight: 800 }} /> },
+                { field: 'currentPeriodEndsAt', headerName: 'Renews / expires', width: 200, valueFormatter: (v: string) => fmtDate(v) },
               ]}
               getRowId={(row) => row.id}
-              pageSizeOptions={[5, 10]}
+              rowHeight={56}
+              autoHeight
+              disableRowSelectionOnClick
+              pageSizeOptions={[10, 25]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              sx={{ ...gridSx, minWidth: 1000 }}
             />
           </Box>
         )}
 
         {/* Tab 5: Transactions */}
         {activeTab === 5 && (
-          <Box sx={{ height: 450, width: '100%', p: 2 }}>
+          <Box sx={{ p: 2.5, width: '100%', overflowX: 'auto' }}>
             <DataGrid
               rows={transactions}
               columns={[
-                { field: 'transactionId', headerName: 'Transaction ID', width: 220 },
-                { field: 'userId', headerName: 'User ID', width: 180 },
-                { field: 'provider', headerName: 'Store Provider', width: 140 },
-                {
-                  field: 'amount',
-                  headerName: 'Amount',
-                  width: 120,
-                  renderCell: (params) => `$${params.value} USD`,
-                },
-                { field: 'transactionType', headerName: 'Type', width: 160 },
-                {
-                  field: 'status',
-                  headerName: 'Status',
-                  width: 120,
-                  renderCell: (params) => (
-                    <Chip label={params.value} color="success" size="small" sx={{ fontWeight: 800 }} />
-                  ),
-                },
+                { field: 'transactionId', headerName: 'Transaction ID', width: 240 },
+                { field: 'userId', headerName: 'User ID', width: 220 },
+                { field: 'provider', headerName: 'Store provider', width: 150 },
+                { field: 'amount', headerName: 'Amount', width: 130, type: 'number', renderCell: (p) => <Typography sx={{ fontWeight: 800, color: 'success.main', fontSize: '0.9rem' }}>{p.value != null ? `$${p.value} ${p.row.currency || 'USD'}` : '—'}</Typography> },
+                { field: 'transactionType', headerName: 'Type', width: 170, valueFormatter: (v: string) => (v || '').replace(/_/g, ' ') },
+                { field: 'status', headerName: 'Status', width: 130, renderCell: (p) => <Chip label={p.value} color={statusColor(p.value)} size="small" sx={{ fontWeight: 800 }} /> },
+                { field: 'createdAt', headerName: 'Date', width: 190, valueFormatter: (v: string) => fmtDate(v) },
               ]}
               getRowId={(row) => row.id}
-              pageSizeOptions={[5, 10]}
+              rowHeight={56}
+              autoHeight
+              disableRowSelectionOnClick
+              pageSizeOptions={[10, 25]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              sx={{ ...gridSx, minWidth: 1050 }}
             />
           </Box>
         )}

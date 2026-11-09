@@ -1433,14 +1433,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Lazy load images below fold */
+/* Lazy images stay visible; the browser defers loading natively. */
 img[loading="lazy"] {
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-}
-
-img[loading="lazy"].loaded {
-  opacity: 1;
+  background-color: rgba(124, 58, 237, 0.08);
 }
 
 /* Optimize touch interactions */

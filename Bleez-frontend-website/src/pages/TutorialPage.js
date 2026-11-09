@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import PageHero from '../components/PageHero';
+import { IMG } from '../data/travelImages';
 import { Navbar, Footer } from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { 
@@ -242,7 +244,8 @@ const TutorialPage = () => {
     <div className="min-h-screen flex flex-col bg-background" data-testid="tutorial-page">
       <Navbar />
       
-      <main className="flex-1 pt-20">
+      <main className="flex-1">
+        <PageHero image={IMG.wander(1600)} eyebrow="Tutorial" title="See how Bleez works" subtitle="A quick guided tour of planning, booking and travelling with Bleez.AI." />
         {/* Progress bar */}
         <div className="fixed top-16 left-0 right-0 z-40 h-1 bg-white/10">
           <div 

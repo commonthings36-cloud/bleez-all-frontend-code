@@ -20,6 +20,7 @@ import { Box, CircularProgress } from '@mui/material';
 const DestinationsPage = lazy(() => import('@/features/destinations/pages/DestinationsPage').then((m) => ({ default: m.DestinationsPage })));
 const SafetyIntelligencePage = lazy(() => import('@/features/safety/pages/SafetyIntelligencePage').then((m) => ({ default: m.SafetyIntelligencePage })));
 const EmergencySosPage = lazy(() => import('@/features/emergency/pages/EmergencySosPage').then((m) => ({ default: m.EmergencySosPage })));
+const TravelBookingsPage = lazy(() => import('@/features/travel-bookings/pages/TravelBookingsPage').then((m) => ({ default: m.TravelBookingsPage })));
 const BookingsPage = lazy(() => import('@/features/bookings/pages/BookingsPage').then((m) => ({ default: m.BookingsPage })));
 const PaymentsPage = lazy(() => import('@/features/payments/pages/PaymentsPage').then((m) => ({ default: m.PaymentsPage })));
 const ExpensesPage = lazy(() => import('@/features/expenses/pages/ExpensesPage').then((m) => ({ default: m.ExpensesPage })));
@@ -120,6 +121,10 @@ export const router = createBrowserRouter([
           {
             path: 'emergency',
             element: <Suspense fallback={LoadingFallback}><EmergencySosPage /></Suspense>,
+          },
+          {
+            path: 'travel-bookings',
+            element: <Suspense fallback={LoadingFallback}><TravelBookingsPage /></Suspense>,
           },
           {
             path: 'bookings',

@@ -30,7 +30,10 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toggleThemeMode } from '@/store/slices/themeSlice';
 import { toggleMobileSidebar, setNotificationsCount } from '@/store/slices/uiSlice';
-import { logout } from '@/store/slices/authSlice';
+import { logout, updateUser } from '@/store/slices/authSlice';
+import { AvatarArt } from '@/components/Illustrations';
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
+import { useSnackbar } from 'notistack';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '@/services/apiClient';
 
@@ -42,6 +45,33 @@ export const TopNav: React.FC = () => {
   const { mode } = useAppSelector((state) => state.theme);
   const { user } = useAppSelector((state) => state.auth);
   const { activeNotificationsCount } = useAppSelector((state) => state.ui);
+
+  const { enqueueSnackbar } = useSnackbar();
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const seed = user?.email || user?.firstName || 'admin';
+
+  // Resize the chosen image to a small square so it stays light in the persisted session.
+  const handlePhoto = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { enqueueSnackbar('Please choose an image file.', { variant: 'warning' }); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const side = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+        dispatch(updateUser({ avatarUrl: canvas.toDataURL('image/jpeg', 0.85) }));
+        enqueueSnackbar('Profile photo updated.', { variant: 'success' });
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [anchorElProfile, setAnchorElProfile] = useState<null | HTMLElement>(null);
   const [anchorElNotif, setAnchorElNotif] = useState<null | HTMLElement>(null);
@@ -208,8 +238,10 @@ export const TopNav: React.FC = () => {
             <Avatar
               src={user?.avatarUrl}
               alt={user?.firstName}
-              sx={{ width: 36, height: 36, border: `2px solid ${theme.palette.primary.main}` }}
-            />
+              sx={{ width: 40, height: 40, border: `2px solid ${theme.palette.primary.main}`, boxShadow: '0 4px 12px -4px rgba(124,58,237,.5)' }}
+            >
+              <AvatarArt seed={seed} />
+            </Avatar>
             <Box sx={{ display: { xs: 'none', lg: 'block' } }}>
               <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
                 {user?.firstName} {user?.lastName}
@@ -220,21 +252,45 @@ export const TopNav: React.FC = () => {
             </Box>
           </Box>
 
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { handlePhoto(e.target.files?.[0]); e.target.value = ''; }} />
+
           <Menu
             anchorEl={anchorElProfile}
             open={Boolean(anchorElProfile)}
             onClose={handleCloseProfile}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            PaperProps={{ sx: { width: 220, mt: 1.5 } }}
+            PaperProps={{ sx: { width: 240, mt: 1.5 } }}
           >
-            <Box sx={{ px: 2, py: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            <Box sx={{ px: 2, py: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+              <Box sx={{ position: 'relative', mb: 1 }}>
+                <Avatar src={user?.avatarUrl} sx={{ width: 72, height: 72, border: `3px solid ${theme.palette.primary.main}` }}>
+                  <AvatarArt seed={seed} />
+                </Avatar>
+                <IconButton
+                  size="small"
+                  aria-label="Change profile photo"
+                  onClick={() => fileRef.current?.click()}
+                  sx={{ position: 'absolute', right: -6, bottom: -6, width: 28, height: 28, bgcolor: 'primary.main', color: '#fff', border: `2px solid ${theme.palette.background.default}`, '&:hover': { bgcolor: 'primary.dark' } }}
+                >
+                  <PhotoCameraOutlinedIcon sx={{ fontSize: 15 }} />
+                </IconButton>
+              </Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
                 {user?.firstName} {user?.lastName}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 {user?.email}
               </Typography>
+              {user?.avatarUrl && (
+                <Typography
+                  variant="caption"
+                  onClick={() => dispatch(updateUser({ avatarUrl: undefined }))}
+                  sx={{ mt: 0.5, cursor: 'pointer', color: 'error.main', fontWeight: 700, '&:hover': { textDecoration: 'underline' } }}
+                >
+                  Remove photo
+                </Typography>
+              )}
             </Box>
             <Divider />
             <MenuItem onClick={() => { handleCloseProfile(); navigate('/settings'); }}>
