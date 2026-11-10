@@ -66,6 +66,7 @@ export const EmergencySosPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   const fetchPanicEvents = () => {
+    if (document.hidden) return;
     setLoading(true);
     apiClient
       .get('/emergency/panic-events')
@@ -84,7 +85,7 @@ export const EmergencySosPage: React.FC = () => {
 
   useEffect(() => {
     fetchPanicEvents();
-    const interval = setInterval(fetchPanicEvents, 15000);
+    const interval = setInterval(fetchPanicEvents, 45000);
     return () => clearInterval(interval);
   }, []);
 

@@ -125,7 +125,9 @@ export const UsersPage: React.FC = () => {
 
   useEffect(() => {
     load();
-    const t = setInterval(() => load(true), 20000); // keep presence/location fresh
+    const t = setInterval(() => {
+      if (!document.hidden) load(true);
+    }, 45000); // keep presence/location fresh
     return () => clearInterval(t);
   }, [load]);
 

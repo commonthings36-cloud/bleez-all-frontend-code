@@ -139,6 +139,7 @@ export const DashboardPage: React.FC = () => {
   ]);
 
   const fetchDashboardLiveData = () => {
+    if (document.hidden) return;
     // 1. Fetch real-time consolidated dashboard analytics from MongoDB backend
     apiClient
       .get('/admin/dashboard/stats')
@@ -233,7 +234,7 @@ export const DashboardPage: React.FC = () => {
       apiClient.delete(`/expenses/${id}`).catch(() => {});
     });
     fetchDashboardLiveData();
-    const interval = setInterval(fetchDashboardLiveData, 15000); // 15-second live refresh
+    const interval = setInterval(fetchDashboardLiveData, 45000); // 45-second live refresh
     return () => clearInterval(interval);
   }, []);
 

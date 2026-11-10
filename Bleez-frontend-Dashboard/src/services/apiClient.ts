@@ -3,7 +3,7 @@ import { store } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { enqueueSnackbar } from 'notistack';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4545/api';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://13.232.176.192:4545/api';
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

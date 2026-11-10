@@ -56,7 +56,7 @@ Modern, full-featured administration & management dashboard for the Bleez / AI T
    ```bash
    cp .env.example .env
    ```
-   Configure `VITE_API_BASE_URL` to point to your backend API service (default: `http://localhost:4545/api`).
+   Configure `VITE_API_BASE_URL` to point to your backend API service (default: `http://13.232.176.192:4545/api`).
 
 ### Development Server
 
