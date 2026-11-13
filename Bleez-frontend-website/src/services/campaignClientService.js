@@ -3,13 +3,8 @@
  * Communicates with customer-facing Backend APIs (/api/campaigns/eligible)
  */
 
-const getBackendUrl = () => {
-  const envUrl = process.env.REACT_APP_BACKEND_URL;
-  if (envUrl && envUrl.includes('4545')) {
-    return envUrl;
-  }
-  return 'http://localhost:4545';
-};
+// Empty means same-origin ("/api/..."), which is how the production nginx proxies the backend.
+const getBackendUrl = () => process.env.REACT_APP_BACKEND_URL || '';
 
 export async function fetchEligibleCampaigns(placement = 'HOME_HERO', platform = 'WEB') {
   try {
