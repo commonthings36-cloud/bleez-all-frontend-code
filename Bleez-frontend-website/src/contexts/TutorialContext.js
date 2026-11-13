@@ -20,15 +20,6 @@ const TUTORIAL_STEPS = [
     position: 'center'
   },
   {
-    id: 'install-app',
-    title: 'Install the App 📱',
-    description: 'Bleez works as a native app on Android & iOS! Look for the "Install" or "Add to Home Screen" option in your browser menu.',
-    target: null,
-    page: '/',
-    position: 'center',
-    showInstallTip: true
-  },
-  {
     id: 'plan-trip',
     title: 'Plan Your Trip ✈️',
     description: 'Click "Plan Your Journey" to create AI-powered personalized itineraries based on your preferences.',
@@ -65,7 +56,7 @@ const TUTORIAL_STEPS = [
     id: 'my-trips',
     title: 'My Trips 🗺️',
     description: 'All your planned trips are saved here. View, edit, or share any itinerary.',
-    target: 'nav a[href="/my-trips"]',
+    target: '[data-testid="user-menu-trigger"]',
     page: '/my-trips',
     position: 'bottom'
   },
@@ -105,16 +96,8 @@ const TUTORIAL_STEPS = [
     id: 'albums',
     title: 'Travel Albums 📸',
     description: 'Create albums to organize your travel memories. Add photos, notes, and share with friends!',
-    target: 'nav a[href="/albums"]',
+    target: '[data-testid="user-menu-trigger"]',
     page: '/albums',
-    position: 'bottom'
-  },
-  {
-    id: 'community',
-    title: 'Community Chat 💬',
-    description: 'Connect with other travelers! Share tips, ask questions, and make travel friends.',
-    target: 'nav a[href="/community"]',
-    page: '/community',
     position: 'bottom'
   },
   {
@@ -129,7 +112,7 @@ const TUTORIAL_STEPS = [
     id: 'profile',
     title: 'Your Profile 👤',
     description: 'Set your food preferences, budget, interests, and travel style. The AI uses this to personalize your trips!',
-    target: 'nav a[href="/profile"]',
+    target: '[data-testid="user-menu-trigger"]',
     page: '/profile',
     position: 'bottom'
   },

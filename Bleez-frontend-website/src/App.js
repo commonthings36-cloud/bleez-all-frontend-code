@@ -27,7 +27,6 @@ import ExpensesPage from "./pages/ExpensesPage";
 import AlertsPage from "./pages/AlertsPage";
 import AIChatBubble from "./components/AIChatBubble";
 import EmergencyIcon from "./components/EmergencyIcon";
-import InstallPrompt from "./components/InstallPrompt";
 import TutorialPage from "./pages/TutorialPage";
 import DownloadAppPage from "./pages/DownloadAppPage";
 import CustomerSubscriptionPage from "./pages/CustomerSubscriptionPage";
@@ -155,7 +154,6 @@ function AppContent() {
         </Routes>
         <AIChatBubble />
         <EmergencyIcon />
-        <InstallPrompt />
         <TutorialOverlay />
       </DynamicBackground>
     </DynamicBackgroundProvider>

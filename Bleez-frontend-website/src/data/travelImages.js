@@ -1,5 +1,5 @@
 // Verified Unsplash photos (free to use under the Unsplash License).
-const u = (id, w = 900) => `https://images.unsplash.com/photo-${id}?w=${w}&q=75&auto=format&fit=crop`;
+const u = (id, w = 900) => `https://images.unsplash.com/photo-${id}?w=${w}&q=82&auto=format&fit=crop`;
 
 export const IMG = {
   maldives: (w) => u('1507525428034-b723cf961d3e', w),

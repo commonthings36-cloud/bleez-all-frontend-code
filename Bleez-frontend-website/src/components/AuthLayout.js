@@ -1,8 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Navbar } from './Layout';
-import { FALLBACK_IMG } from '../data/travelImages';
-import { Plane, MapPin, Sparkles, ShieldCheck, Loader2, Star } from 'lucide-react';
+import { Plane, MapPin, Sparkles, ShieldCheck, Loader2 } from 'lucide-react';
 
 export const GoogleIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5">
@@ -84,14 +83,9 @@ const PERKS = [
 
 const Photo = ({ image }) => (
   <>
-    <img
-      src={image}
-      alt=""
-      aria-hidden="true"
-      className="absolute inset-0 w-full h-full object-cover"
-      onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = FALLBACK_IMG; }}
-    />
-    <div className="absolute inset-0 bg-gradient-to-t from-[#1c0838] via-[#2E1065]/55 to-[#2E1065]/20" />
+    <div className="mesh-bg" aria-hidden="true"><i /></div>
+    {image && <img src={image} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover kenburns" />}
+    <div className="absolute inset-0 bg-gradient-to-t from-[#0B0618]/90 via-[#0B0618]/40 to-[#0B0618]/30" aria-hidden="true" />
   </>
 );
 
@@ -102,7 +96,7 @@ const Photo = ({ image }) => (
 const AuthLayout = ({ testId, image, headline, tagline, children, footer, variant = 'split', floating }) => {
   if (variant === 'center') {
     return (
-      <div className="min-h-screen flex flex-col bg-[#1c0838]" data-testid={testId}>
+      <div className="min-h-screen flex flex-col bg-[#0B0618] text-foreground" data-testid={testId}>
         <Navbar />
         <div className="relative flex-1 flex items-center justify-center px-4 sm:px-6 pt-24 sm:pt-28 pb-10 sm:pb-14">
           <Photo image={image} />
@@ -143,11 +137,8 @@ const AuthLayout = ({ testId, image, headline, tagline, children, footer, varian
           <Photo image={image} />
           {floating}
           <div className="relative z-10 flex flex-col justify-end p-12 xl:p-14 text-white max-w-xl">
-            <div className="inline-flex items-center gap-2 self-start rounded-full bg-white/15 backdrop-blur px-4 py-1.5 text-xs font-medium mb-6">
-              <Star className="w-3.5 h-3.5 fill-[#E8A33D] text-[#E8A33D]" /> Loved by travellers worldwide
-            </div>
-            <h2 className="text-4xl xl:text-5xl font-extrabold leading-tight mb-4">{headline}</h2>
-            <p className="text-white/80 text-lg mb-8">{tagline}</p>
+            <h2 className="text-3xl xl:text-4xl font-extrabold leading-tight mb-4">{headline}</h2>
+            <p className="text-white/75 text-base mb-8">{tagline}</p>
             <ul className="space-y-3">
               {PERKS.map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-center gap-3 text-white/90">

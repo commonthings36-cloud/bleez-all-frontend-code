@@ -28,7 +28,6 @@ export const FAQ_GROUPS = [
     items: [
       { q: 'What is the Emergency page for?', a: 'It shows emergency numbers for where you are so you can reach help quickly. Always confirm with local guidance, as numbers can change.', keywords: ['emergency', 'sos', 'police', 'help', 'ambulance'], link: { to: '/emergency', label: 'Emergency contacts' } },
       { q: 'Do I get travel alerts?', a: 'Yes. Signed-in travellers can see alerts for their trips and current area, and choose which alert types they want.', keywords: ['alert', 'alerts', 'weather', 'safety', 'notification'], link: { to: '/alerts', label: 'Travel alerts' } },
-      { q: 'Is there a mobile app?', a: 'Yes. Download links for the app are on the Get the App page.', keywords: ['app', 'download', 'ios', 'android', 'mobile'], link: { to: '/download', label: 'Get the app' } },
     ],
   },
 ];

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Menu, X, Plane, User, LogOut, Map, Briefcase, Folder, Users, Play, Download, Ticket, Sun, Moon, DollarSign, Crown, Heart } from 'lucide-react';
+import { Menu, X, Plane, User, LogOut, Map, Folder, Sun, Moon, DollarSign, Crown, Heart, ArrowRight, ArrowUp, Mail, Home, Info, Sparkles, Ticket, Compass, HelpCircle } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '../components/ui/avatar';
 import {
@@ -17,540 +17,268 @@ import CurrencySelector from './CurrencySelector';
 import AlertsPanel from './AlertsPanel';
 import TutorialButton from './TutorialButton';
 import { cn } from '../lib/utils';
+import { IMG } from '../data/travelImages';
+import { SITE } from '../lib/site';
+
+const NAV_LINKS = [
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/about', label: 'About', icon: Info },
+  { to: '/plan', label: 'Plan Trip', icon: Sparkles },
+  { to: '/booking', label: 'Book Travel', icon: Ticket },
+  { to: '/explore', label: 'Explore', icon: Compass },
+  { to: '/how-it-works', label: 'How It Works', icon: HelpCircle },
+];
+
+const ACCOUNT_LINKS = [
+  { to: '/profile', label: 'Profile', icon: User },
+  { to: '/my-trips', label: 'My Trips', icon: Map },
+  { to: '/albums', label: 'Albums', icon: Folder },
+  { to: '/expenses', label: 'Expenses', icon: DollarSign },
+  { to: '/wishlist', label: 'Wishlist', icon: Heart },
+  { to: '/my-subscription', label: 'Subscription', icon: Crown },
+];
 
 export const Navbar = () => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme, isLight } = useTheme();
+  const { toggleTheme, isLight } = useTheme();
   const navigate = useNavigate();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { pathname } = useLocation();
+  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    if (!mobileMenuOpen) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false); };
-    document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [mobileMenuOpen]);
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => setOpen(false), [pathname]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/');
   };
 
+  const linkCls = (to) => cn(
+    'relative px-3 xl:px-3.5 py-2 rounded-full text-[13px] xl:text-sm font-semibold whitespace-nowrap transition-colors',
+    pathname === to
+      ? 'bg-primary/10 text-primary'
+      : 'text-foreground/70 hover:text-foreground hover:bg-foreground/5'
+  );
+
   return (
     <>
-    <nav className={cn(
-      "fixed top-0 left-0 right-0 z-50 border-b transition-colors",
-      isLight 
-        ? "bg-white/95 backdrop-blur-xl border-gray-200 shadow-sm" 
-        : "glass border-white/5"
-    )} style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-      <div className="container-main">
-        <div className="flex items-center h-14 sm:h-16 md:h-20">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group shrink-0" data-testid="logo-link">
-            <div className="w-10 h-10 rounded-xl gold-gradient flex items-center justify-center">
-              <Plane className={cn("w-5 h-5", isLight ? "text-white" : "text-background")} />
-            </div>
-            <span className="text-xl font-semibold tracking-tight">
-              <span className={isLight ? "text-gray-900" : ""}>Bleez</span><span className="gold-text">.AI</span>
+      <header
+        className="fixed inset-x-0 top-0 z-50 px-3 sm:px-6 pointer-events-none"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
+        <nav
+          aria-label="Main"
+          className={cn(
+            'pointer-events-auto mx-auto max-w-6xl h-14 md:h-16 rounded-full border flex items-center gap-2 pl-4 pr-2 transition-all duration-300 backdrop-blur-xl',
+            scrolled ? 'bg-background shadow-lg shadow-black/10 border-border' : 'bg-background shadow-md shadow-black/10 border-transparent'
+          )}
+        >
+          <Link to="/" className="flex items-center gap-2.5 shrink-0" data-testid="logo-link">
+            <span className="w-9 h-9 rounded-xl brand-gradient flex items-center justify-center shadow-md shadow-primary/30">
+              <Plane className="w-[18px] h-[18px] text-white" />
             </span>
+            <span className="text-lg font-extrabold tracking-tight">Bleez<span className="text-primary">.AI</span></span>
           </Link>
 
-          {/* Desktop Navigation - Centered */}
-          <nav className="hidden md:flex items-center justify-center flex-1 mx-8">
-            <div className="flex items-center gap-8">
-              <Link 
-                to="/plan" 
-                className={cn(
-                  "text-sm font-medium transition-colors whitespace-nowrap",
-                  isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid="nav-plan"
-              >
-                Plan Trip
-              </Link>
-              <Link 
-                to="/explore" 
-                className={cn(
-                  "text-sm font-medium transition-colors whitespace-nowrap",
-                  isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid="nav-explore"
-              >
-                Explore
-              </Link>
-              <Link 
-                to="/booking" 
-                className={cn(
-                  "text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
-                  isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid="nav-booking"
-              >
-                <Ticket className="w-4 h-4" />
-                Book Travel
-              </Link>
-              <Link 
-                to="/community" 
-                className={cn(
-                  "text-sm font-medium transition-colors whitespace-nowrap",
-                  isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                )}
-                data-testid="nav-community"
-              >
-                Community
-              </Link>
-              {user && (
-                <>
-                  <Link 
-                    to="/my-trips" 
-                    className={cn(
-                      "text-sm font-medium transition-colors whitespace-nowrap",
-                      isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    data-testid="nav-my-trips"
-                  >
-                    My Trips
-                  </Link>
-                  <Link 
-                    to="/albums" 
-                    className={cn(
-                      "text-sm font-medium transition-colors whitespace-nowrap",
-                      isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    data-testid="nav-albums"
-                  >
-                    Albums
-                  </Link>
-                  <Link 
-                    to="/expenses" 
-                    className={cn(
-                      "text-sm font-medium transition-colors whitespace-nowrap",
-                      isLight ? "text-gray-600 hover:text-gray-900" : "text-muted-foreground hover:text-foreground"
-                    )}
-                    data-testid="nav-expenses"
-                  >
-                    Expenses
-                  </Link>
-                </>
-              )}
-            </div>
-          </nav>
+          <div className="hidden lg:flex items-center gap-1 mx-auto">
+            {NAV_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className={linkCls(l.to)} data-testid={`nav-${l.to.slice(1)}`}>{l.label}</Link>
+            ))}
+          </div>
 
-          {/* Auth Buttons - Right aligned */}
-          <div className="hidden md:flex items-center gap-2 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 shrink-0 ml-auto lg:ml-0">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="w-9 h-9 rounded-full" title={`Switch to ${isLight ? 'dark' : 'light'} mode`} data-testid="theme-toggle">
+              {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </Button>
             {user ? (
               <>
-                {/* Currency Selector - Compact */}
                 <CurrencySelector compact={true} showLabel={false} />
-                
-                {/* Theme Toggle */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className={cn("w-9 h-9", isLight && "text-gray-600 hover:text-gray-900 hover:bg-gray-100")}
-                  title={`Switch to ${isLight ? 'dark' : 'light'} mode`}
-                  data-testid="theme-toggle"
-                >
-                  {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                </Button>
-                
-                {/* Tutorial Button */}
                 <TutorialButton />
-                
-                {/* Alerts Panel */}
                 <AlertsPanel />
-                
-                {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="gap-2" data-testid="user-menu-trigger">
+                    <Button variant="ghost" className="gap-2 rounded-full pl-1.5" data-testid="user-menu-trigger">
                       <Avatar className="w-8 h-8">
-                        {user.picture ? (
-                          <AvatarImage src={user.picture} />
-                        ) : (
-                          <AvatarFallback className="bg-primary/20 text-primary text-sm">
-                            {user.name?.charAt(0) || 'U'}
-                          </AvatarFallback>
+                        {user.picture ? <AvatarImage src={user.picture} /> : (
+                          <AvatarFallback className="bg-primary/15 text-primary text-sm font-bold">{user.name?.charAt(0) || 'U'}</AvatarFallback>
                         )}
                       </Avatar>
-                      <span className="text-sm">{user.name}</span>
+                      <span className="text-sm font-semibold max-w-[110px] truncate">{user.name}</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48 glass border-white/10">
-                    <DropdownMenuItem onClick={() => navigate('/profile')} data-testid="menu-profile">
-                      <User className="w-4 h-4 mr-2" />
-                      Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/my-trips')} data-testid="menu-trips">
-                      <Map className="w-4 h-4 mr-2" />
-                      My Trips
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/albums')} data-testid="menu-albums">
-                      <Folder className="w-4 h-4 mr-2" />
-                      Albums
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/expenses')} data-testid="menu-expenses">
-                      <DollarSign className="w-4 h-4 mr-2" />
-                      Expenses
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/my-subscription')} data-testid="menu-subscription">
-                      <Crown className="w-4 h-4 mr-2 text-amber-400" />
-                      Subscription
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate('/download')} data-testid="menu-download">
-                      <Download className="w-4 h-4 mr-2" />
-                      Get App
-                    </DropdownMenuItem>
+                  <DropdownMenuContent align="end" className="w-52 rounded-2xl p-1.5">
+                    {ACCOUNT_LINKS.map((l) => (
+                      <DropdownMenuItem key={l.to} onClick={() => navigate(l.to)} className="rounded-xl py-2.5" data-testid={`menu-${l.to.slice(1)}`}>
+                        <l.icon className="w-4 h-4 mr-2.5" /> {l.label}
+                      </DropdownMenuItem>
+                    ))}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout} data-testid="menu-logout">
-                      <LogOut className="w-4 h-4 mr-2" />
-                      Sign Out
+                    <DropdownMenuItem onClick={handleLogout} className="rounded-xl py-2.5" data-testid="menu-logout">
+                      <LogOut className="w-4 h-4 mr-2.5" /> Sign Out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             ) : (
               <>
-                {/* Theme Toggle for non-authenticated users */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={toggleTheme}
-                  className={cn("w-9 h-9", isLight && "text-gray-600 hover:text-gray-900 hover:bg-gray-100")}
-                  title={`Switch to ${isLight ? 'dark' : 'light'} mode`}
-                  data-testid="theme-toggle"
-                >
-                  {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                </Button>
-                <Link to="/download">
-                  <Button 
-                    variant="ghost" 
-                    className={cn("btn-ghost gap-2", isLight && "text-gray-600 hover:text-gray-900 hover:bg-gray-100")} 
-                    data-testid="nav-download"
-                  >
-                    <Download className="w-4 h-4" />
-                    Get App
-                  </Button>
-                </Link>
-                <Link to="/login">
-                  <Button 
-                    variant="ghost" 
-                    className={cn("btn-ghost", isLight && "text-gray-600 hover:text-gray-900 hover:bg-gray-100")} 
-                    data-testid="nav-login"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-                <Link to="/register">
-                  <Button className="btn-primary" data-testid="nav-register">
-                    Get Started
-                  </Button>
+                <Link to="/login" className="px-4 py-2 rounded-full text-sm font-semibold text-foreground/80 hover:bg-foreground/5 transition-colors" data-testid="nav-login">Sign In</Link>
+                <Link to="/register" data-testid="nav-register">
+                  <Button className="rounded-full px-5 h-10 brand-gradient text-white font-semibold shadow-md shadow-primary/30 hover:brightness-110">Get Started</Button>
                 </Link>
               </>
             )}
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex items-center gap-1 ml-auto md:hidden">
-            {/* Mobile Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className={cn(
-                "p-2 rounded-full transition-colors",
-                isLight ? "hover:bg-gray-100" : "hover:bg-white/10"
-              )}
-              title={`Switch to ${isLight ? 'dark' : 'light'} mode`}
-            >
-              {isLight ? <Moon className="w-5 h-5 text-gray-600" /> : <Sun className="w-5 h-5 text-yellow-400" />}
+          <div className="flex items-center gap-1 ml-auto lg:hidden">
+            <button onClick={toggleTheme} className="p-2.5 rounded-full hover:bg-foreground/5" aria-label="Toggle theme">
+              {isLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
             </button>
-            
-            {/* Mobile Get App Icon */}
-            <Link 
-              to="/download" 
-              className={cn(
-                "p-2 rounded-full transition-colors",
-                isLight ? "hover:bg-gray-100" : "hover:bg-white/10"
-              )}
-              data-testid="mobile-download-icon"
-              aria-label="Get App"
-            >
-              <Download className="w-5 h-5 text-primary" />
-            </Link>
-            
-            <button 
-              className={cn("p-2", isLight && "text-gray-700")} 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              data-testid="mobile-menu-toggle"
+            <button
+              className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
               aria-label="Toggle menu"
+              data-testid="mobile-menu-toggle"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
-        </div>
+        </nav>
+      </header>
 
-      </div>
-    </nav>
-    
-    {/* Mobile Menu - Rendered outside nav for full-screen overlay */}
-    {mobileMenuOpen && (
-      <div 
-        className="md:hidden fixed inset-0 overflow-y-auto"
-        style={{ 
-          zIndex: 9999,
-          backgroundColor: isLight ? '#ffffff' : '#050810',
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 64px)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 20px) + 80px)',
-          WebkitOverflowScrolling: 'touch'
-        }}
-        data-testid="mobile-menu-overlay"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Main menu"
-      >
-        {/* Overlay header with a visible close button */}
+      {open && (
         <div
-          className={cn(
-            "fixed top-0 left-0 right-0 flex items-center justify-between px-4 h-14 border-b",
-            isLight ? "bg-white border-gray-200" : "bg-[#050810] border-white/10"
-          )}
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 1 }}
+          className="lg:hidden fixed inset-0 z-40 bg-background overflow-y-auto"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 80px)' }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main menu"
+          data-testid="mobile-menu-overlay"
         >
-          <Link to="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl gold-gradient flex items-center justify-center">
-              <Plane className={cn("w-5 h-5", isLight ? "text-white" : "text-background")} />
-            </div>
-            <span className="text-lg font-semibold tracking-tight">
-              <span className={isLight ? "text-gray-900" : ""}>Bleez</span><span className="gold-text">.AI</span>
-            </span>
-          </Link>
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-label="Close menu"
-            data-testid="mobile-menu-close"
-            className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center transition-colors",
-              isLight ? "bg-gray-100 hover:bg-gray-200 text-gray-800" : "bg-white/10 hover:bg-white/20 text-white"
+          <div className="px-4 pb-10 max-w-md mx-auto">
+            {user && (
+              <div className="mb-4 flex items-center gap-3 rounded-2xl bg-primary/5 border border-primary/15 p-3">
+                <Avatar className="w-10 h-10">
+                  {user.picture ? <AvatarImage src={user.picture} /> : <AvatarFallback className="bg-primary/15 text-primary font-bold">{user.name?.charAt(0) || 'U'}</AvatarFallback>}
+                </Avatar>
+                <div className="min-w-0"><p className="font-bold truncate">{user.name}</p><p className="text-xs text-muted-foreground truncate">{user.email}</p></div>
+              </div>
             )}
-          >
-            <X className="w-5 h-5" />
-          </button>
+            <nav aria-label="Pages" className="grid gap-1">
+              {NAV_LINKS.map((l) => (
+                <Link key={l.to} to={l.to} className={cn('flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-base font-semibold transition-colors', pathname === l.to ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25' : 'hover:bg-foreground/5')}>
+                  <l.icon className="w-5 h-5" /> {l.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="my-4 border-t border-border" />
+            {user ? (
+              <div className="grid gap-1">
+                {ACCOUNT_LINKS.map((l) => (
+                  <Link key={l.to} to={l.to} className="flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[15px] font-medium text-foreground/80 hover:bg-foreground/5">
+                    <l.icon className="w-[18px] h-[18px] text-primary" /> {l.label}
+                  </Link>
+                ))}
+                <button onClick={handleLogout} className="flex items-center gap-3.5 px-4 py-3 rounded-2xl text-[15px] font-medium text-left text-foreground/80 hover:bg-foreground/5">
+                  <LogOut className="w-[18px] h-[18px] text-primary" /> Sign out
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Link to="/login" className="py-3.5 rounded-full border border-border text-center font-semibold">Sign in</Link>
+                <Link to="/register" className="py-3.5 rounded-full brand-gradient text-white text-center font-semibold">Get started</Link>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-2 p-4 min-h-full">
-          {/* Primary CTAs at top */}
-          <Link 
-            to="/booking" 
-            className="px-4 py-4 bg-primary/20 hover:bg-primary/30 rounded-xl flex items-center gap-3 border border-primary/30"
-            onClick={() => setMobileMenuOpen(false)}
-            data-testid="mobile-menu-booking"
-          >
-            <Ticket className="w-6 h-6 text-primary" />
-            <span className="font-semibold text-primary text-lg">Book Travel</span>
-          </Link>
-          
-          {/* Quick Actions */}
-          <Link 
-            to="/plan" 
-            className={cn(
-              "px-4 py-4 rounded-xl flex items-center gap-3",
-              isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-            )}
-            onClick={() => setMobileMenuOpen(false)}
-            data-testid="mobile-menu-plan"
-          >
-            <Plane className="w-5 h-5 text-primary" />
-            <span className="text-base font-medium">Plan Trip</span>
-          </Link>
-          <Link 
-            to="/explore" 
-            className={cn(
-              "px-4 py-4 rounded-xl flex items-center gap-3",
-              isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-            )}
-            onClick={() => setMobileMenuOpen(false)}
-            data-testid="mobile-menu-explore"
-          >
-            <Map className="w-5 h-5 text-primary" />
-            <span className="text-base font-medium">Explore</span>
-          </Link>
-          <Link 
-            to="/wishlist" 
-            className={cn(
-              "px-4 py-4 rounded-xl flex items-center gap-3",
-              isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-            )}
-            onClick={() => setMobileMenuOpen(false)}
-            data-testid="mobile-menu-wishlist"
-          >
-            <Heart className="w-5 h-5 text-primary" />
-            <span className="text-base font-medium">Wishlist</span>
-          </Link>
-          <Link 
-            to="/community" 
-            className={cn(
-              "px-4 py-4 rounded-xl flex items-center gap-3",
-              isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-            )}
-            onClick={() => setMobileMenuOpen(false)}
-            data-testid="mobile-menu-community"
-          >
-            <Users className="w-5 h-5 text-primary" />
-            <span className="text-base font-medium">Community</span>
-          </Link>
-          
-          {user ? (
-            <>
-              {/* Divider */}
-              <div className={cn("my-3 border-t", isLight ? "border-gray-200" : "border-white/10")} />
-              
-              {/* User Menu Items */}
-              <Link 
-                to="/profile" 
-                className={cn(
-                  "px-4 py-4 rounded-xl flex items-center gap-3",
-                  isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-                data-testid="mobile-menu-profile"
-              >
-                <User className={cn("w-5 h-5", isLight ? "text-gray-500" : "text-muted-foreground")} />
-                <span className="text-base font-medium">Profile</span>
-              </Link>
-              <Link 
-                to="/my-trips" 
-                className={cn(
-                  "px-4 py-4 rounded-xl flex items-center gap-3",
-                  isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-                data-testid="mobile-menu-trips"
-              >
-                <Map className={cn("w-5 h-5", isLight ? "text-gray-500" : "text-muted-foreground")} />
-                <span className="text-base font-medium">My Trips</span>
-              </Link>
-              <Link 
-                to="/albums" 
-                className={cn(
-                  "px-4 py-4 rounded-xl flex items-center gap-3",
-                  isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-                data-testid="mobile-menu-albums"
-              >
-                <Folder className={cn("w-5 h-5", isLight ? "text-gray-500" : "text-muted-foreground")} />
-                <span className="text-base font-medium">Albums</span>
-              </Link>
-              <Link 
-                to="/expenses" 
-                className={cn(
-                  "px-4 py-4 rounded-xl flex items-center gap-3",
-                  isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-                data-testid="mobile-menu-expenses"
-              >
-                <DollarSign className={cn("w-5 h-5", isLight ? "text-gray-500" : "text-muted-foreground")} />
-                <span className="text-base font-medium">Expenses</span>
-              </Link>
-              <Link 
-                to="/download" 
-                className={cn(
-                  "px-4 py-4 rounded-xl flex items-center gap-3",
-                  isLight ? "hover:bg-gray-100 text-gray-800" : "hover:bg-white/5 text-foreground"
-                )}
-                onClick={() => setMobileMenuOpen(false)}
-                data-testid="mobile-menu-download"
-              >
-                <Download className={cn("w-5 h-5", isLight ? "text-gray-500" : "text-muted-foreground")} />
-                <span className="text-base font-medium">Get App</span>
-              </Link>
-              
-              {/* Divider */}
-              <div className={cn("my-3 border-t", isLight ? "border-gray-200" : "border-white/10")} />
-              
-              <button 
-                onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
-                className={cn(
-                  "px-4 py-4 text-left rounded-xl text-red-500 flex items-center gap-3",
-                  isLight ? "hover:bg-red-50" : "hover:bg-red-500/10"
-                )}
-                data-testid="mobile-menu-logout"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="text-base font-medium">Sign Out</span>
-              </button>
-            </>
-          ) : (
-            <div className="pt-6 space-y-3 mt-auto">
-              <Link to="/download" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className={cn("w-full h-12 gap-2 text-base", isLight && "border-gray-300 text-gray-700")}>
-                  <Download className="w-5 h-5" />
-                  Get App
-                </Button>
-              </Link>
-              <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className={cn("w-full h-12 text-base", isLight && "border-gray-300 text-gray-700")}>Sign In</Button>
-              </Link>
-              <Link to="/register" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="w-full h-12 btn-primary text-base">Get Started</Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
+      )}
     </>
   );
 };
 
 const FOOTER_COLUMNS = [
-  { title: 'Travel', links: [['/plan', 'Plan a trip'], ['/explore', 'Explore'], ['/booking', 'Book travel'], ['/wishlist', 'Wishlist'], ['/community', 'Community']] },
-  { title: 'Company', links: [['/about', 'About us'], ['/how-it-works', 'How it works'], ['/my-subscription', 'Plans & pricing'], ['/download', 'Get the app']] },
-  { title: 'Support', links: [['/faq', 'FAQs'], ['/help', 'Help center'], ['/contact', 'Contact us'], ['/emergency', 'Emergency numbers']] },
+  { title: 'Explore', links: [['/', 'Home'], ['/about', 'About us'], ['/plan', 'Plan a trip'], ['/booking', 'Book travel'], ['/explore', 'Explore'], ['/how-it-works', 'How it works']] },
+  { title: 'Support', links: [['/faq', 'FAQs'], ['/help', 'Help center'], ['/contact', 'Contact us'], ['/emergency', 'Emergency numbers'], ['/my-subscription', 'Plans & pricing']] },
   { title: 'Legal', links: [['/privacy', 'Privacy policy'], ['/terms', 'Terms & conditions']] },
 ];
 
-export const Footer = () => {
-  return (
-    <footer className="mt-auto text-white bg-gradient-to-b from-[#2E1065] to-[#1a0a3d]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="container-main py-14 md:py-16">
-        <div className="grid gap-10 md:grid-cols-6">
-          <div className="md:col-span-2">
-            <Link to="/" className="inline-flex items-center gap-2.5 mb-4">
-              <span className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                <Plane className="w-5 h-5 text-white" />
-              </span>
-              <span className="text-xl font-bold tracking-tight">Bleez<span className="text-[#A78BFA]">.AI</span></span>
-            </Link>
-            <p className="text-white/70 text-sm max-w-xs leading-relaxed mb-5">
-              Plan smarter and travel better. AI itineraries, flight and hotel search, and support on the road, in one place.
-            </p>
-            <Link to="/download" className="inline-flex items-center gap-2 rounded-full bg-white text-brand-700 px-5 py-2.5 text-sm font-semibold hover:bg-white/90 transition-colors">
-              <Download className="w-4 h-4" /> Get the app
-            </Link>
+const FOOTER_DESTINATIONS = ['Paris', 'Kyoto', 'Bali', 'Santorini', 'Rome', 'Swiss Alps'];
+
+export const Footer = () => (
+  <footer className="relative mt-auto text-white bg-[#0B0618] overflow-hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    {/* Call-to-action card */}
+    <div className="container-main relative z-10 pt-16 md:pt-24">
+      <div className="relative overflow-hidden rounded-[2rem] md:rounded-[2.5rem] px-6 sm:px-12 py-12 md:py-16 bg-[#2E1065]">
+        <img src={IMG.paradise(1600)} alt="" aria-hidden="true" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#2E1065]/95 via-[#4C1D95]/80 to-[#0D9488]/50" aria-hidden="true" />
+        <div className="relative grid md:grid-cols-[1.4fr_1fr] gap-8 items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/70 mb-3">Ready when you are</p>
+            <h3 className="text-2xl md:text-4xl font-extrabold leading-tight tracking-tight">Where will you wake up next?</h3>
+            <p className="mt-3 text-white/80 max-w-lg">Tell Bleez your dream destination and get a day-by-day itinerary in moments.</p>
           </div>
-
-          {FOOTER_COLUMNS.map((col) => (
-            <nav key={col.title} aria-label={col.title}>
-              <h4 className="text-sm font-semibold uppercase tracking-[0.15em] text-white/50 mb-4">{col.title}</h4>
-              <ul className="space-y-2.5 text-sm">
-                {col.links.map(([to, label]) => (
-                  <li key={to}><Link to={to} className="text-white/80 hover:text-white hover:underline underline-offset-4 transition-colors">{label}</Link></li>
-                ))}
-              </ul>
-            </nav>
-          ))}
-        </div>
-
-        <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row gap-2 justify-between text-sm text-white/55">
-          <p>&copy; {new Date().getFullYear()} Bleez. All rights reserved.</p>
-          <p>Bookings are completed with the airline, hotel or partner you choose.</p>
+          <div className="flex flex-wrap md:justify-end gap-3">
+            <Link to="/plan" className="inline-flex items-center gap-2 rounded-full bg-white text-[#2E1065] px-7 py-3.5 font-bold hover:bg-white/90 transition-colors">Plan my trip <ArrowRight className="w-4 h-4" /></Link>
+            <Link to="/booking" className="inline-flex items-center gap-2 rounded-full glass-panel px-7 py-3.5 font-bold hover:bg-white/20 transition-colors">Search flights</Link>
+          </div>
         </div>
       </div>
-    </footer>
-  );
-};
+    </div>
+
+    <div className="relative">
+      <div className="mesh-bg opacity-50" aria-hidden="true"><i /></div>
+      <div className="container-main relative py-14 md:py-20">
+        <div className="grid gap-12 lg:grid-cols-[1.4fr_2.2fr]">
+          <div>
+            <Link to="/" className="inline-flex items-center gap-2.5 mb-5">
+              <span className="w-11 h-11 rounded-2xl brand-gradient flex items-center justify-center shadow-lg shadow-primary/30"><Plane className="w-5 h-5 text-white" /></span>
+              <span className="text-2xl font-extrabold tracking-tight">Bleez<span className="text-[#A78BFA]">.AI</span></span>
+            </Link>
+            <p className="text-white/65 max-w-sm leading-relaxed">Plan smarter and travel better. AI itineraries, flight and hotel search, and support on the road, all in one place.</p>
+            {SITE.supportEmail && (
+              <a href={`mailto:${SITE.supportEmail}`} className="mt-5 inline-flex items-center gap-2 text-white/85 hover:text-white font-semibold"><Mail className="w-4 h-4 text-[#A78BFA]" /> {SITE.supportEmail}</a>
+            )}
+            <div className="mt-7">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/40 mb-3">Popular trips</p>
+              <div className="flex flex-wrap gap-2">
+                {FOOTER_DESTINATIONS.map((d) => (
+                  <Link key={d} to="/plan" state={{ destination: d }} className="rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 text-sm text-white/80 hover:bg-white/15 hover:text-white transition-colors">{d}</Link>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-8">
+            {FOOTER_COLUMNS.map((col) => (
+              <nav key={col.title} aria-label={col.title}>
+                <h4 className="text-xs font-bold uppercase tracking-[0.18em] text-white/40 mb-5">{col.title}</h4>
+                <ul className="space-y-3 text-[15px]">
+                  {col.links.map(([to, label]) => (
+                    <li key={to}><Link to={to} className="text-white/75 hover:text-white inline-flex items-center gap-1 group transition-colors">{label}<ArrowRight className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" /></Link></li>
+                  ))}
+                </ul>
+              </nav>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-14 pt-6 border-t border-white/10 flex flex-col-reverse sm:flex-row gap-4 items-start sm:items-center justify-between text-sm text-white/45">
+          <div>
+            <p>&copy; {new Date().getFullYear()} Bleez. All rights reserved.</p>
+            <p className="mt-1">Bookings are completed with the airline, hotel or partner you choose.</p>
+          </div>
+          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors">
+            Back to top <ArrowUp className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  </footer>
+);

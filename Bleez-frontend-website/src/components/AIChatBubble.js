@@ -53,11 +53,12 @@ const AIChatBubble = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[60]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-[60]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {open && (
         <section
           role="dialog"
           aria-label={`${SITE.name} help assistant`}
+          data-testid="chat-window"
           className="mb-3 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[min(560px,calc(100vh-7rem))] flex flex-col rounded-3xl overflow-hidden bg-card text-card-foreground border border-border shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-200"
         >
           <header className="flex items-center gap-3 px-4 py-3 text-white bg-gradient-to-r from-brand-700 to-brand-500">
@@ -120,6 +121,7 @@ const AIChatBubble = () => {
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? 'Close help' : 'Open help'}
         aria-expanded={open}
+        data-testid="chat-toggle"
         className="ml-auto flex w-14 h-14 rounded-full items-center justify-center text-white bg-gradient-to-br from-brand-500 to-brand-700 shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-transform"
       >
         {open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}

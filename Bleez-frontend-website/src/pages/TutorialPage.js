@@ -140,17 +140,6 @@ const TutorialPage = () => {
       animation: 'animate-float'
     },
     {
-      id: 'community',
-      title: 'Community Chat',
-      subtitle: 'Connect with Travelers',
-      description: 'Join the community! Share tips, ask questions, and connect with fellow travelers from around the world.',
-      icon: Users,
-      color: 'from-emerald-500 to-teal-500',
-      features: ['Real-time chat', 'Travel tips', 'Meet travelers', 'Share experiences'],
-      demoAction: () => navigate('/community'),
-      animation: 'animate-bounce-slow'
-    },
-    {
       id: 'profile',
       title: 'Smart Profile',
       subtitle: 'Personalized Experience',
