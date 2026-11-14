@@ -14,11 +14,13 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import BlockIcon from '@mui/icons-material/Block';
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
+import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import { useSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { GrantOfferDialog } from '@/features/subscriptions/components/GrantOfferDialog';
 import { apiClient } from '@/services/apiClient';
 import { useAppSelector } from '@/store/hooks';
 import { UsersMap, MapUser } from '../components/UsersMap';
@@ -109,6 +111,10 @@ export const UsersPage: React.FC = () => {
   const [provider, setProvider] = useState('all');
   const [showOffline, setShowOffline] = useState(true);
   const [focusId, setFocusId] = useState<string | null>(null);
+
+  // Grant Offer & Perks Dialog state
+  const [selectedUserForOffer, setSelectedUserForOffer] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [globalOfferOpen, setGlobalOfferOpen] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -253,11 +259,27 @@ export const UsersPage: React.FC = () => {
     { field: 'lastLogin', headerName: 'Last login', width: 180, valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '—') },
     { field: 'createdAt', headerName: 'Joined', width: 120, valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : '—') },
     {
-      field: 'actions', headerName: '', width: 70, sortable: false, filterable: false, align: 'center',
+      field: 'actions', headerName: 'Actions', width: 110, sortable: false, filterable: false, align: 'center',
       renderCell: (p) => (
-        <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
-          <span><IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}><MyLocationIcon fontSize="small" /></IconButton></span>
-        </Tooltip>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <Tooltip title="Grant Offer / Extra Perks">
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
+              sx={{ '&:hover': { bgcolor: 'primary.50' } }}
+            >
+              <CardGiftcardIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
+            <span>
+              <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
+                <MyLocationIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
       ),
     },
   ];
@@ -278,6 +300,14 @@ export const UsersPage: React.FC = () => {
         breadcrumbs={[{ label: 'Users' }]}
         action={
           <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="contained"
+              startIcon={<CardGiftcardIcon />}
+              onClick={() => setGlobalOfferOpen(true)}
+              sx={{ fontWeight: 800 }}
+            >
+              Grant Offer
+            </Button>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => load()} disabled={loading}>Refresh</Button>
           </Stack>
@@ -407,6 +437,18 @@ export const UsersPage: React.FC = () => {
         color={pending?.role === 'ADMIN' ? 'warning' : 'primary'}
         onConfirm={changeRole}
         onClose={() => setPending(null)}
+      />
+
+      <GrantOfferDialog
+        open={Boolean(selectedUserForOffer || globalOfferOpen)}
+        targetUser={selectedUserForOffer}
+        onClose={() => {
+          setSelectedUserForOffer(null);
+          setGlobalOfferOpen(false);
+        }}
+        onSuccess={() => {
+          load(true);
+        }}
       />
     </Box>
   );

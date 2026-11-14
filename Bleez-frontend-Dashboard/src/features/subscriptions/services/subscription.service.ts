@@ -102,4 +102,34 @@ export const subscriptionService = {
     const res = await apiClient.post('/billing/google/verify', payload);
     return res.data;
   },
+
+  // Admin Offers & Perks APIs
+  grantOffer: async (payload: {
+    userId?: string;
+    userEmail?: string;
+    offerType: string;
+    extraGenerations?: number;
+    isUnlimited?: boolean;
+    planCode?: string;
+    durationDays?: number;
+    reason?: string;
+  }): Promise<any> => {
+    const res = await apiClient.post('/admin/offers/grant', payload);
+    return res.data;
+  },
+
+  getOffersHistory: async (): Promise<any[]> => {
+    const res = await apiClient.get('/admin/offers/history');
+    return res.data;
+  },
+
+  getOffersSummary: async (): Promise<any> => {
+    const res = await apiClient.get('/admin/offers/summary');
+    return res.data;
+  },
+
+  revokeOffer: async (grantId: string): Promise<any> => {
+    const res = await apiClient.delete(`/admin/offers/${grantId}/revoke`);
+    return res.data;
+  },
 };

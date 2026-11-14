@@ -55,11 +55,13 @@ import {
   ViewModule,
   TableRows,
   Search as SearchIcon,
+  CardGiftcard,
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
 
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
+import { GrantOfferDialog } from '../components/GrantOfferDialog';
 import {
   SubscriptionPlan,
   FeatureRegistryItem,
@@ -93,6 +95,11 @@ export const SubscriptionManagementPage: React.FC = () => {
   const [transactions, setTransactions] = useState<BillingTransaction[]>([]);
   const [analytics, setAnalytics] = useState<SubscriptionAnalytics | null>(null);
 
+  // Offers & Perks State
+  const [offersHistory, setOffersHistory] = useState<any[]>([]);
+  const [offersSummary, setOffersSummary] = useState<any>(null);
+  const [grantOfferModalOpen, setGrantOfferModalOpen] = useState(false);
+
   // Dialog State
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
@@ -121,13 +128,15 @@ export const SubscriptionManagementPage: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [plansData, featsData, metricsData, subsData, txData, statsData] = await Promise.all([
+      const [plansData, featsData, metricsData, subsData, txData, statsData, offersData, offersSumData] = await Promise.all([
         subscriptionService.getAllPlans(),
         subscriptionService.getAllFeatures(),
         subscriptionService.getAllMetrics(),
         subscriptionService.getAllSubscribers(),
         subscriptionService.getAllTransactions(),
         subscriptionService.getAnalytics(),
+        subscriptionService.getOffersHistory().catch(() => []),
+        subscriptionService.getOffersSummary().catch(() => null),
       ]);
 
       setPlans(plansData);
@@ -136,6 +145,8 @@ export const SubscriptionManagementPage: React.FC = () => {
       setSubscribers(subsData);
       setTransactions(txData);
       setAnalytics(statsData);
+      setOffersHistory(offersData || []);
+      setOffersSummary(offersSumData);
 
       if (plansData.length > 0 && !simulatedPlan) {
         setSimulatedPlan(plansData[0]);
@@ -592,6 +603,7 @@ export const SubscriptionManagementPage: React.FC = () => {
           <Tab icon={<AutoAwesome fontSize="small" />} iconPosition="start" label={`Metric Quotas (${metrics.length})`} />
           <Tab icon={<People fontSize="small" />} iconPosition="start" label={`Subscribers (${subscribers.length})`} />
           <Tab icon={<Receipt fontSize="small" />} iconPosition="start" label={`Store Transactions (${transactions.length})`} />
+          <Tab icon={<CardGiftcard fontSize="small" />} iconPosition="start" label={`Offers & Grants (${offersHistory.length})`} />
         </Tabs>
 
         {loading && <LinearProgress />}
@@ -968,6 +980,99 @@ export const SubscriptionManagementPage: React.FC = () => {
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
               sx={{ ...gridSx, minWidth: 1050 }}
             />
+          </Box>
+        )}
+
+        {/* Tab 6: Offers & Grants */}
+        {activeTab === 6 && (
+          <Box sx={{ p: 2.5 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2.5 }} flexWrap="wrap" gap={1}>
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                  Special Offers, Perks & Quota Grants
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Manage promotional perks, bonus itinerary generations, and plan upgrades granted to users
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<CardGiftcard />}
+                onClick={() => setGrantOfferModalOpen(true)}
+                sx={{ fontWeight: 800 }}
+              >
+                Grant New Offer
+              </Button>
+            </Stack>
+
+            {/* Offer summary cards */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+              <GlassCard sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Total Offers Granted</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: 'primary.main', mt: 0.5 }}>{offersSummary?.totalOffersGranted || offersHistory.length}</Typography>
+              </GlassCard>
+              <GlassCard sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Active Promo Grants</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: 'success.main', mt: 0.5 }}>{offersSummary?.activeOffersCount || offersHistory.filter((o: any) => o.status === 'ACTIVE').length}</Typography>
+              </GlassCard>
+              <GlassCard sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Extra Trips Given</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: '#F59E0B', mt: 0.5 }}>+{offersSummary?.totalExtraGenerationsDistributed || 0}</Typography>
+              </GlassCard>
+              <GlassCard sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>Plan Upgrades</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: '#06B6D4', mt: 0.5 }}>{offersSummary?.planUpgradesCount || 0}</Typography>
+              </GlassCard>
+            </Box>
+
+            {/* DataGrid of Offers */}
+            <Box sx={{ width: '100%', overflowX: 'auto' }}>
+              <DataGrid
+                rows={offersHistory}
+                columns={[
+                  { field: 'userName', headerName: 'User', width: 220, renderCell: (p) => (
+                    <Box sx={{ py: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{p.value || 'User'}</Typography>
+                      <Typography variant="caption" color="text.secondary">{p.row.userEmail}</Typography>
+                    </Box>
+                  )},
+                  { field: 'offerTitle', headerName: 'Offer & Perks', width: 280, renderCell: (p) => (
+                    <Chip label={p.value} color="primary" variant="outlined" size="small" sx={{ fontWeight: 700 }} />
+                  )},
+                  { field: 'reason', headerName: 'Reason / Note', width: 220, valueFormatter: (v: string) => v || '—' },
+                  { field: 'adminEmail', headerName: 'Granted By', width: 180, valueFormatter: (v: string) => v || 'admin@bleez.ai' },
+                  { field: 'status', headerName: 'Status', width: 120, renderCell: (p) => (
+                    <Chip label={p.value} color={p.value === 'ACTIVE' ? 'success' : 'default'} size="small" sx={{ fontWeight: 700 }} />
+                  )},
+                  { field: 'grantedAt', headerName: 'Granted Date', width: 180, valueFormatter: (v: string) => fmtDate(v) },
+                  { field: 'actions', headerName: '', width: 100, renderCell: (p) => (
+                    p.row.status === 'ACTIVE' ? (
+                      <Button
+                        size="small"
+                        color="error"
+                        onClick={async () => {
+                          try {
+                            await subscriptionService.revokeOffer(p.row.id);
+                            enqueueSnackbar('Offer revoked successfully', { variant: 'info' });
+                            loadData();
+                          } catch (e: any) {
+                            enqueueSnackbar('Failed to revoke offer', { variant: 'error' });
+                          }
+                        }}
+                      >
+                        Revoke
+                      </Button>
+                    ) : null
+                  )},
+                ]}
+                getRowId={(row) => row.id || Math.random().toString()}
+                rowHeight={60}
+                autoHeight
+                pageSizeOptions={[10, 25]}
+                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+                sx={{ ...gridSx, minWidth: 1050 }}
+              />
+            </Box>
           </Box>
         )}
       </GlassCard>
@@ -1453,6 +1558,12 @@ export const SubscriptionManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <GrantOfferDialog
+        open={grantOfferModalOpen}
+        onClose={() => setGrantOfferModalOpen(false)}
+        onSuccess={loadData}
+      />
     </Box>
   );
 };
