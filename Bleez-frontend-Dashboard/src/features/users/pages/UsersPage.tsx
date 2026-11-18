@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Chip, FormControlLabel, IconButton, InputAdornment, MenuItem, Select, Stack,
-  Switch, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography, keyframes,
+  Alert, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
+  DialogContentText, DialogTitle, FormControlLabel, FormGroup, IconButton,
+  InputAdornment, MenuItem, Select, Stack, Switch, TextField, ToggleButton,
+  ToggleButtonGroup, Tooltip, Typography, keyframes,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -11,10 +13,13 @@ import MyLocationIcon from '@mui/icons-material/MyLocation';
 import FilterAltOffIcon from '@mui/icons-material/FilterAltOff';
 import PeopleIcon from '@mui/icons-material/People';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import BlockIcon from '@mui/icons-material/Block';
 import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import { useSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
@@ -116,6 +121,29 @@ export const UsersPage: React.FC = () => {
   const [selectedUserForOffer, setSelectedUserForOffer] = useState<{ id: string; name: string; email: string } | null>(null);
   const [globalOfferOpen, setGlobalOfferOpen] = useState(false);
 
+  // User status (deactivate / reactivate) confirmation dialog
+  const [statusDialogUser, setStatusDialogUser] = useState<UserRow | null>(null);
+
+  // Permanently delete user confirmation dialog
+  const [deleteDialogUser, setDeleteDialogUser] = useState<UserRow | null>(null);
+
+  // Clear history dialog state
+  const [clearHistoryUser, setClearHistoryUser] = useState<UserRow | null>(null);
+  const [historyScope, setHistoryScope] = useState({
+    all: true,
+    trips: true,
+    bookings: true,
+    media: true,
+    alerts: true,
+  });
+
+  const isProtectedAdmin = useCallback((row: UserRow) => {
+    const e = (row.email || '').toLowerCase().trim();
+    return e === (currentEmail || '').toLowerCase().trim() ||
+           e === 'admin@aitravelglobe.com' ||
+           e === 'syed@aitravelglobe.com';
+  }, [currentEmail]);
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
@@ -184,6 +212,58 @@ export const UsersPage: React.FC = () => {
     } catch (e: any) {
       enqueueSnackbar(e?.response?.data?.message || 'Could not change role', { variant: 'error' });
       setPending(null);
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!statusDialogUser) return;
+    try {
+      const nextStatus = !statusDialogUser.enabled;
+      await apiClient.put(`/admin/users/${statusDialogUser.id}/status`, { enabled: nextStatus });
+      enqueueSnackbar(
+        nextStatus ? `${statusDialogUser.name} has been reactivated.` : `${statusDialogUser.name} has been deactivated.`,
+        { variant: 'success' }
+      );
+      setStatusDialogUser(null);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to update user status', { variant: 'error' });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteDialogUser) return;
+    try {
+      await apiClient.delete(`/admin/users/${deleteDialogUser.id}`);
+      enqueueSnackbar(`${deleteDialogUser.name} and all data deleted permanently.`, { variant: 'success' });
+      setDeleteDialogUser(null);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete user', { variant: 'error' });
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!clearHistoryUser) return;
+    try {
+      const parts: string[] = [];
+      if (historyScope.all) {
+        parts.push('ALL');
+      } else {
+        if (historyScope.trips) parts.push('TRIPS');
+        if (historyScope.bookings) parts.push('BOOKINGS');
+        if (historyScope.media) parts.push('MEDIA');
+        if (historyScope.alerts) parts.push('ALERTS_AND_ACTIVITY');
+      }
+      const scopeStr = parts.length > 0 ? parts.join(',') : 'ALL';
+      await apiClient.delete(`/admin/users/${clearHistoryUser.id}/history`, {
+        params: { scope: scopeStr },
+      });
+      enqueueSnackbar(`History cleared successfully for ${clearHistoryUser.name}.`, { variant: 'success' });
+      setClearHistoryUser(null);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear user history', { variant: 'error' });
     }
   };
 
@@ -259,28 +339,76 @@ export const UsersPage: React.FC = () => {
     { field: 'lastLogin', headerName: 'Last login', width: 180, valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '—') },
     { field: 'createdAt', headerName: 'Joined', width: 120, valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : '—') },
     {
-      field: 'actions', headerName: 'Actions', width: 110, sortable: false, filterable: false, align: 'center',
-      renderCell: (p) => (
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          <Tooltip title="Grant Offer / Extra Perks">
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
-              sx={{ '&:hover': { bgcolor: 'primary.50' } }}
-            >
-              <CardGiftcardIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
-            <span>
-              <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
-                <MyLocationIcon fontSize="small" />
+      field: 'actions', headerName: 'Actions', width: 200, sortable: false, filterable: false, align: 'center',
+      renderCell: (p) => {
+        const isProtected = isProtectedAdmin(p.row);
+        return (
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Tooltip title="Grant Offer / Extra Perks">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
+                sx={{ '&:hover': { bgcolor: 'primary.50' } }}
+              >
+                <CardGiftcardIcon fontSize="small" />
               </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
-      ),
+            </Tooltip>
+            <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
+              <span>
+                <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
+                  <MyLocationIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title={isProtected ? 'Protected account' : (p.row.enabled ? 'Deactivate user' : 'Reactivate user')}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={isProtected}
+                  onClick={() => setStatusDialogUser(p.row)}
+                  sx={{
+                    color: p.row.enabled ? 'error.main' : 'success.main',
+                    '&:hover': { bgcolor: p.row.enabled ? 'error.50' : 'success.50' },
+                  }}
+                >
+                  {p.row.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Clear user history (trips, bookings, media, activity)">
+              <IconButton
+                size="small"
+                sx={{
+                  color: 'warning.main',
+                  '&:hover': { bgcolor: 'warning.50' },
+                }}
+                onClick={() => {
+                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
+                  setClearHistoryUser(p.row);
+                }}
+              >
+                <HistoryToggleOffIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={isProtected ? 'Protected account' : 'Delete user permanently'}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={isProtected}
+                  onClick={() => setDeleteDialogUser(p.row)}
+                  sx={{
+                    color: 'error.main',
+                    '&:hover': { bgcolor: 'error.50' },
+                  }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        );
+      },
     },
   ];
 
@@ -450,6 +578,140 @@ export const UsersPage: React.FC = () => {
           load(true);
         }}
       />
+
+      <ConfirmDialog
+        open={!!statusDialogUser}
+        title={statusDialogUser?.enabled ? 'Deactivate user account?' : 'Reactivate user account?'}
+        message={statusDialogUser ? (
+          statusDialogUser.enabled
+            ? `Are you sure you want to deactivate ${statusDialogUser.name} (${statusDialogUser.email})? The user will be immediately logged out and blocked from logging into the mobile or web app.`
+            : `Reactivate ${statusDialogUser.name} (${statusDialogUser.email})? The user will regain access to their Bleez account.`
+        ) : ''}
+        confirmText={statusDialogUser?.enabled ? 'Deactivate' : 'Reactivate'}
+        color={statusDialogUser?.enabled ? 'error' : 'success'}
+        onConfirm={handleToggleStatus}
+        onClose={() => setStatusDialogUser(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteDialogUser}
+        title="Permanently delete user account?"
+        message={deleteDialogUser ? `Are you sure you want to permanently delete ${deleteDialogUser.name} (${deleteDialogUser.email})? All associated trips, flight bookings, media albums, intelligence alerts, and behavior logs will be permanently erased. THIS ACTION CANNOT BE UNDONE.` : ''}
+        confirmText="Delete Permanently"
+        color="error"
+        onConfirm={handleDeleteUser}
+        onClose={() => setDeleteDialogUser(null)}
+      />
+
+      <Dialog
+        open={!!clearHistoryUser}
+        onClose={() => setClearHistoryUser(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>Clear User History</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Select the history data you want to wipe for <strong>{clearHistoryUser?.name}</strong>. The user account will remain active.
+          </DialogContentText>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={historyScope.all}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setHistoryScope({
+                      all: checked,
+                      trips: checked,
+                      bookings: checked,
+                      media: checked,
+                      alerts: checked,
+                    });
+                  }}
+                  color="warning"
+                />
+              }
+              label={<strong>Wipe All History (Complete reset)</strong>}
+            />
+            <Box sx={{ pl: 3 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={historyScope.trips}
+                    onChange={(e) => {
+                      const next = { ...historyScope, trips: e.target.checked };
+                      next.all = next.trips && next.bookings && next.media && next.alerts;
+                      setHistoryScope(next);
+                    }}
+                    color="warning"
+                    size="small"
+                  />
+                }
+                label="Trips & Itineraries (including expenses)"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={historyScope.bookings}
+                    onChange={(e) => {
+                      const next = { ...historyScope, bookings: e.target.checked };
+                      next.all = next.trips && next.bookings && next.media && next.alerts;
+                      setHistoryScope(next);
+                    }}
+                    color="warning"
+                    size="small"
+                  />
+                }
+                label="Flight Bookings"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={historyScope.media}
+                    onChange={(e) => {
+                      const next = { ...historyScope, media: e.target.checked };
+                      next.all = next.trips && next.bookings && next.media && next.alerts;
+                      setHistoryScope(next);
+                    }}
+                    color="warning"
+                    size="small"
+                  />
+                }
+                label="Media & Photo Albums"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={historyScope.alerts}
+                    onChange={(e) => {
+                      const next = { ...historyScope, alerts: e.target.checked };
+                      next.all = next.trips && next.bookings && next.media && next.alerts;
+                      setHistoryScope(next);
+                    }}
+                    color="warning"
+                    size="small"
+                  />
+                }
+                label="Alerts, Intelligence Logs & Telemetry"
+              />
+            </Box>
+          </FormGroup>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setClearHistoryUser(null)} variant="outlined" color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleClearHistory}
+            variant="contained"
+            color="warning"
+            disabled={!historyScope.trips && !historyScope.bookings && !historyScope.media && !historyScope.alerts && !historyScope.all}
+          >
+            Clear Selected History
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
