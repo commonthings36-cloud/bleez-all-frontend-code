@@ -416,7 +416,7 @@ export const EmergencySosPage: React.FC = () => {
 
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 340px' }, gap: 2 }}>
               <Box sx={{ height: 420, borderRadius: '16px', overflow: 'hidden', position: 'relative' }}>
-                <SosMap points={points} focusId={focusId} themeMode={themeMode} />
+                <SosMap points={points} focusId={focusId} mode={themeMode} />
               </Box>
 
               <Box sx={{ maxHeight: 420, overflowY: 'auto', pr: 0.5 }}>
