@@ -73,8 +73,10 @@ export const LoginPage: React.FC = () => {
         dispatch(loginFailure('The server returned an invalid login response.'));
         return;
       }
-      // The admin APIs are restricted to ROLE_ADMIN, so other accounts cannot use this dashboard.
-      if (!roles.includes('ADMIN')) {
+      // Allow accounts with ADMIN, SUPER_ADMIN, or CAMPAIGN_ADMIN to access this dashboard.
+      const adminRoles = ['ADMIN', 'SUPER_ADMIN', 'CAMPAIGN_ADMIN'];
+      const hasAdminAccess = roles.some((r) => adminRoles.includes(String(r).toUpperCase()));
+      if (!hasAdminAccess) {
         dispatch(loginFailure('This account does not have administrator access.'));
         return;
       }

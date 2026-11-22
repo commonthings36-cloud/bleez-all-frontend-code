@@ -21,6 +21,8 @@ import {
   Tab,
   Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
   keyframes,
@@ -776,7 +778,7 @@ export const CmsPage: React.FC = () => {
                       size="small"
                       value={activePage.status}
                       exclusive
-                      onChange={(_, val) => val && updatePage({ status: val })}
+                      onChange={(_: React.MouseEvent<HTMLElement>, val: 'DRAFT' | 'PUBLISHED' | null) => val && updatePage({ status: val })}
                     >
                       <ToggleButton value="DRAFT" sx={{ fontWeight: 700, px: 1.5 }}>
                         Draft

@@ -65,7 +65,7 @@ const toRow = (u: any): UserRow => {
     email: u.email,
     phone: u.phone,
     picture: u.picture,
-    role: Array.isArray(u.roles) && u.roles.includes('ADMIN') ? 'ADMIN' : 'USER',
+    role: Array.isArray(u.roles) && (u.roles.includes('ADMIN') || u.roles.includes('SUPER_ADMIN') || u.roles.includes('CAMPAIGN_ADMIN')) ? 'ADMIN' : 'USER',
     enabled: u.enabled !== false,
     online: !!(u.online ?? u.isOnline),
     authProvider: u.authProvider,
