@@ -62,6 +62,7 @@ import {
   Public,
   Close,
   ContentCopy,
+  Send,
 } from '@mui/icons-material';
 import { enqueueSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
@@ -642,6 +643,16 @@ export const CampaignsPage: React.FC = () => {
     }
   };
 
+  const handleBroadcast = async (id: string) => {
+    try {
+      const res = await campaignService.broadcastCampaign(id);
+      enqueueSnackbar(res.message || 'Campaign broadcasted to users!', { variant: 'success' });
+      fetchData();
+    } catch (err: any) {
+      enqueueSnackbar(err?.response?.data?.message || 'Failed to broadcast campaign.', { variant: 'error' });
+    }
+  };
+
   const handleConvertOpportunity = async (oppId: string) => {
     try {
       const draft = await campaignService.convertOpportunityToDraft(oppId);
@@ -894,7 +905,12 @@ export const CampaignsPage: React.FC = () => {
                           {c.status === 'DRAFT' && <Button size="small" variant="outlined" onClick={() => handleSubmitForApproval(c.id)} sx={{ fontWeight: 700 }}>Send for approval</Button>}
                           {(c.status === 'PENDING_APPROVAL' || c.status === 'SUBMITTED') && <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => handleApprove(c.id)} sx={{ fontWeight: 700 }}>Approve</Button>}
                           {(c.status === 'APPROVED' || c.status === 'PAUSED') && <Button size="small" variant="contained" startIcon={<PlayArrow />} onClick={() => handleActivate(c.id)} sx={{ fontWeight: 700 }}>{c.status === 'PAUSED' ? 'Resume' : 'Launch'}</Button>}
-                          {c.status === 'ACTIVE' && <Button size="small" variant="outlined" color="warning" startIcon={<PauseCircle />} onClick={() => handlePause(c.id)} sx={{ fontWeight: 700 }}>Pause</Button>}
+                          {c.status === 'ACTIVE' && (
+                            <>
+                              <Button size="small" variant="contained" color="secondary" startIcon={<Send />} onClick={() => handleBroadcast(c.id)} sx={{ fontWeight: 700 }}>Broadcast</Button>
+                              <Button size="small" variant="outlined" color="warning" startIcon={<PauseCircle />} onClick={() => handlePause(c.id)} sx={{ fontWeight: 700 }}>Pause</Button>
+                            </>
+                          )}
                         </Stack>
                       </Stack>
                     </Box>

@@ -115,6 +115,11 @@ export const campaignService = {
     return response.data;
   },
 
+  async broadcastCampaign(id: string): Promise<{ success: boolean; deliveredCount: number; message: string }> {
+    const response = await apiClient.post<{ success: boolean; deliveredCount: number; message: string }>(`/admin/campaigns/${id}/broadcast`);
+    return response.data;
+  },
+
   // AI Campaign Opportunities Endpoints
   async getRecommendedOpportunities(): Promise<CampaignOpportunity[]> {
     const response = await apiClient.get<CampaignOpportunity[]>('/admin/campaigns/opportunities');
