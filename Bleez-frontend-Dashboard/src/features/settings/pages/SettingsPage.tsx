@@ -21,8 +21,10 @@ import {
   TextField,
   Tooltip,
   Typography,
+  keyframes,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import TuneIcon from '@mui/icons-material/Tune';
 import LockIcon from '@mui/icons-material/Lock';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -176,20 +178,30 @@ export const SettingsPage: React.FC = () => {
 
   const currentItems = categories[activeTab] || [];
 
+  const fadeUp = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`;
+  const isConf = (i: SettingItem) => Boolean(i.isConfigured || i.is_configured);
+  const all = Object.values(categories).flat();
+  const configured = all.filter(isConf).length;
+  const overrides = all.filter((i) => i.source === 'DATABASE_OVERRIDE').length;
+  const kpis = [
+    { label: 'Total settings', value: all.length, sub: 'Across all categories', color: '#7C3AED', icon: <TuneIcon /> },
+    { label: 'Configured', value: configured, sub: all.length ? `${Math.round((configured / all.length) * 100)}% ready` : '—', color: '#16A34A', icon: <CheckCircleIcon /> },
+    { label: 'Missing / unset', value: all.length - configured, sub: 'Need a value', color: all.length - configured > 0 ? '#F59E0B' : '#16A34A', icon: <ErrorOutlineIcon /> },
+    { label: 'Dashboard overrides', value: overrides, sub: 'Changed from this panel', color: '#0EA5E9', icon: <EditIcon /> },
+  ];
+
+  const catColor: Record<string, string> = { AI: '#7C3AED', TRAVEL: '#0EA5E9', BILLING: '#F59E0B', COMMUNICATIONS: '#EC4899', STORAGE: '#14B8A6', ROUTING: '#6366F1' };
+  const accent = catColor[activeTab] || '#7C3AED';
+  const activeCat = CATEGORIES.find((c) => c.id === activeTab)!;
+
   return (
     <Box>
       <PageHeader
-        title="Platform & Integration Settings"
-        subtitle="Configure AI engines, travel provider APIs, Stripe payments, SMTP mail, AWS cloud, and routing flags."
+        title="Settings & Integrations"
+        subtitle="API keys, providers and feature switches that power Bleez. Secrets stay masked."
         breadcrumbs={[{ label: 'Platform' }, { label: 'Settings' }]}
         action={
-          <Button
-            variant="contained"
-            startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
-            onClick={fetchSettings}
-            disabled={loading}
-            sx={{ fontWeight: 700 }}
-          >
+          <Button variant="contained" startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />} onClick={fetchSettings} disabled={loading} sx={{ fontWeight: 700 }}>
             Refresh
           </Button>
         }
@@ -197,304 +209,195 @@ export const SettingsPage: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />}
 
-      {/* Category Tabs */}
-      <GlassCard sx={{ p: 1, mb: 3 }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, val) => setActiveTab(val)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            '& .MuiTab-root': {
-              minHeight: 48,
-              fontWeight: 700,
-              textTransform: 'none',
-              fontSize: '0.88rem',
-              gap: 1,
-            },
-          }}
-        >
-          {CATEGORIES.map((cat) => (
-            <Tab
-              key={cat.id}
-              value={cat.id}
-              label={cat.label}
-              icon={cat.icon}
-              iconPosition="start"
-            />
-          ))}
-        </Tabs>
-      </GlassCard>
+      <Box sx={{ display: 'grid', gap: 2, mb: 3, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' } }}>
+        {kpis.map((k, i) => (
+          <GlassCard key={k.label} sx={{ p: 2.5, height: 120, animation: `${fadeUp} .45s ease ${i * 0.07}s both` }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography color="text.secondary" sx={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>{k.label}</Typography>
+                <Typography sx={{ fontSize: '1.9rem', fontWeight: 800, lineHeight: 1.3, color: k.color }}>{k.value}</Typography>
+              </Box>
+              <Box sx={{ width: 42, height: 42, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: `${k.color}1a`, color: k.color }}>{k.icon}</Box>
+            </Stack>
+            <Typography noWrap color="text.secondary" sx={{ fontSize: '0.8rem' }}>{k.sub}</Typography>
+          </GlassCard>
+        ))}
+      </Box>
 
-      {/* Main Settings Grid */}
-      <Box sx={{ display: 'grid', gap: 2.5 }}>
-        {/* Banner with Security Assurance */}
-        <GlassCard sx={{ p: 2, bgcolor: 'rgba(99, 102, 241, 0.04)', borderColor: 'rgba(99, 102, 241, 0.2)' }}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <LockIcon sx={{ color: '#6366F1', fontSize: 20 }} />
-            <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-              All confidential API keys and credentials are cryptographically masked at rest. Changes are permanently audited in the{' '}
-              <Typography component="span" sx={{ fontWeight: 800, color: '#6366F1' }}>
-                Platform Security Audit Trail
-              </Typography>
-              .
-            </Typography>
+      <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '270px 1fr' }, alignItems: 'start' }}>
+        {/* Category list */}
+        <GlassCard sx={{ p: 1.25, position: { md: 'sticky' }, top: { md: 90 } }}>
+          <Stack spacing={0.5}>
+            {CATEGORIES.map((cat) => {
+              const items = categories[cat.id] || [];
+              const done = items.filter(isConf).length;
+              const on = activeTab === cat.id;
+              const c = catColor[cat.id];
+              const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+              return (
+                <Box
+                  key={cat.id} role="button" tabIndex={0} onClick={() => setActiveTab(cat.id)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setActiveTab(cat.id)}
+                  sx={{ p: 1.5, borderRadius: '12px', cursor: 'pointer', border: '1px solid', borderColor: on ? c : 'transparent', bgcolor: on ? `${c}14` : 'transparent', transition: 'all .2s', '&:hover': { bgcolor: `${c}10` } }}
+                >
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <Box sx={{ width: 34, height: 34, borderRadius: '10px', flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: `${c}1f`, color: c }}>{cat.icon}</Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.88rem', lineHeight: 1.3 }}>{cat.label}</Typography>
+                      <Typography color="text.secondary" sx={{ fontSize: '0.72rem' }}>{done}/{items.length} configured</Typography>
+                    </Box>
+                  </Stack>
+                  <LinearProgress variant="determinate" value={pct} sx={{ mt: 1, height: 4, borderRadius: 2, bgcolor: `${c}22`, '& .MuiLinearProgress-bar': { bgcolor: c, borderRadius: 2 } }} />
+                </Box>
+              );
+            })}
           </Stack>
         </GlassCard>
 
-        {currentItems.length === 0 ? (
-          <GlassCard sx={{ p: 6, textAlign: 'center' }}>
-            <EmptyState title="No Settings Found" description="Select another category tab above." />
-          </GlassCard>
-        ) : (
-          currentItems.map((item) => {
-            const isSecret = Boolean(item.isSecret || item.is_secret);
-            const isConfigured = Boolean(item.isConfigured || item.is_configured);
-            const displayVal = item.displayValue || item.display_value || '';
-            const isBoolean = displayVal === 'true' || displayVal === 'false';
-            const isPrimaryProvider = item.key === 'app.providers.flights.primary';
+        {/* Settings for the chosen category */}
+        <Box sx={{ minWidth: 0 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: '13px', display: 'grid', placeItems: 'center', bgcolor: `${accent}1f`, color: accent }}>{activeCat.icon}</Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', lineHeight: 1.3 }}>{activeCat.label}</Typography>
+              <Stack direction="row" spacing={0.75} alignItems="center" sx={{ color: 'text.secondary' }}>
+                <LockIcon sx={{ fontSize: 14 }} />
+                <Typography sx={{ fontSize: '0.78rem' }}>Secrets are masked. Every change is written to the Audit Logs.</Typography>
+              </Stack>
+            </Box>
+          </Stack>
 
-            // Check if this item has an associated test service
-            let testKey = '';
-            if (item.key.includes('stripe')) testKey = 'stripe';
-            else if (item.key.includes('duffel')) testKey = 'duffel';
-            else if (item.key.includes('openai')) testKey = 'openai';
-            else if (item.key.includes('gemini.api-key')) testKey = 'gemini';
-            else if (item.key.includes('mail.host')) testKey = 'smtp';
-            else if (item.key.includes('aws.s3.bucket')) testKey = 'aws';
-            else if (item.key.includes('firebase')) testKey = 'firebase';
+          {currentItems.length === 0 ? (
+            <GlassCard sx={{ p: 4 }}>
+              <EmptyState title="Nothing to configure here" description={loading ? 'Loading settings…' : 'Pick another category on the left.'} />
+            </GlassCard>
+          ) : (
+            <Stack spacing={1.75}>
+              {currentItems.map((item, idx) => {
+                const isSecret = Boolean(item.isSecret || item.is_secret);
+                const isConfigured = isConf(item);
+                const displayVal = item.displayValue || item.display_value || '';
+                const isBoolean = displayVal === 'true' || displayVal === 'false';
+                const isPrimaryProvider = item.key === 'app.providers.flights.primary';
 
-            const testResult = testKey ? testResults[testKey] : null;
+                let testKey = '';
+                if (item.key.includes('stripe')) testKey = 'stripe';
+                else if (item.key.includes('duffel')) testKey = 'duffel';
+                else if (item.key.includes('openai')) testKey = 'openai';
+                else if (item.key.includes('gemini.api-key')) testKey = 'gemini';
+                else if (item.key.includes('mail.host')) testKey = 'smtp';
+                else if (item.key.includes('aws.s3.bucket')) testKey = 'aws';
+                else if (item.key.includes('firebase')) testKey = 'firebase';
+                const testResult = testKey ? testResults[testKey] : null;
+                const stateColor = isConfigured ? '#16A34A' : '#EF4444';
 
-            return (
-              <GlassCard key={item.key} sx={{ p: 3 }}>
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  justifyContent="space-between"
-                  alignItems={{ xs: 'flex-start', sm: 'center' }}
-                  spacing={2}
-                >
-                  {/* Left: Metadata & Description */}
-                  <Box sx={{ maxWidth: { xs: '100%', sm: '55%' } }}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        {item.label}
-                      </Typography>
-                      {isSecret && (
-                        <Tooltip title="Masked credential">
-                          <LockIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        </Tooltip>
-                      )}
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.82rem', mb: 1 }}>
-                      {item.description}
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                      <Chip
-                        size="small"
-                        label={isConfigured ? 'Configured' : 'Missing / Unset'}
-                        sx={{
-                          fontWeight: 700,
-                          fontSize: '0.7rem',
-                          height: 20,
-                          bgcolor: isConfigured ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                          color: isConfigured ? '#10B981' : '#EF4444',
-                        }}
-                      />
-                      <Chip
-                        size="small"
-                        label={item.source === 'DATABASE_OVERRIDE' ? 'Database Override' : 'OS Environment'}
-                        sx={{
-                          fontSize: '0.68rem',
-                          height: 20,
-                          bgcolor: item.source === 'DATABASE_OVERRIDE' ? 'rgba(99, 102, 241, 0.12)' : 'rgba(0, 0, 0, 0.05)',
-                          color: item.source === 'DATABASE_OVERRIDE' ? '#6366F1' : 'text.secondary',
-                          fontWeight: 600,
-                        }}
-                      />
-                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                        {item.key}
-                      </Typography>
-                    </Stack>
-                  </Box>
-
-                  {/* Right: Interactive Value or Controls */}
-                  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: { xs: '100%', sm: 'auto' } }}>
-                    {isBoolean ? (
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {displayVal === 'true' ? 'ENABLED' : 'DISABLED'}
-                        </Typography>
-                        <Switch
-                          checked={displayVal === 'true'}
-                          onChange={() => handleToggleBoolean(item, displayVal === 'true')}
-                          color="primary"
-                        />
-                      </Stack>
-                    ) : isPrimaryProvider ? (
-                      <Select
-                        size="small"
-                        value={displayVal}
-                        onChange={(e) => {
-                          apiClient
-                            .post('/admin/settings', { key: item.key, value: e.target.value })
-                            .then(() => {
-                              enqueueSnackbar(`Primary flight engine switched to ${e.target.value}`, { variant: 'success' });
-                              fetchSettings();
-                            });
-                        }}
-                        sx={{ fontWeight: 700, minWidth: 140 }}
-                      >
-                        <MenuItem value="DUFFEL">Duffel Engine</MenuItem>
-                        <MenuItem value="GOOGLE">Google Flights</MenuItem>
-                        <MenuItem value="AMADEUS">Amadeus GDS</MenuItem>
-                      </Select>
-                    ) : (
-                      <Box
-                        sx={{
-                          px: 2,
-                          py: 1,
-                          bgcolor: 'rgba(0, 0, 0, 0.03)',
-                          borderRadius: 2,
-                          fontFamily: isSecret ? 'monospace' : 'inherit',
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          maxWidth: { xs: 240, sm: 280 },
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {displayVal || '—'}
+                return (
+                  <GlassCard key={item.key} sx={{ p: 2.5, animation: `${fadeUp} .4s ease ${idx * 0.04}s both`, borderLeft: `4px solid ${stateColor}` }}>
+                    <Stack direction={{ xs: 'column', lg: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', lg: 'center' }} spacing={2}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                          <Typography sx={{ fontWeight: 800, fontSize: '1rem' }}>{item.label}</Typography>
+                          {isSecret && <Tooltip title="Masked credential"><LockIcon sx={{ fontSize: 15, color: 'text.secondary' }} /></Tooltip>}
+                        </Stack>
+                        <Typography color="text.secondary" sx={{ fontSize: '0.84rem', lineHeight: 1.5, mb: 1 }}>{item.description}</Typography>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Chip size="small" label={isConfigured ? 'Configured' : 'Not set'} sx={{ height: 24, borderRadius: '7px', fontWeight: 700, fontSize: '0.7rem', bgcolor: `${stateColor}1a`, color: stateColor }} />
+                          <Chip size="small" label={item.source === 'DATABASE_OVERRIDE' ? 'Set from dashboard' : 'From server environment'} sx={{ height: 24, borderRadius: '7px', fontWeight: 600, fontSize: '0.7rem', bgcolor: item.source === 'DATABASE_OVERRIDE' ? 'rgba(99,102,241,.14)' : 'action.hover', color: item.source === 'DATABASE_OVERRIDE' ? '#6366F1' : 'text.secondary' }} />
+                          <Typography color="text.secondary" sx={{ fontSize: '0.72rem', fontFamily: 'monospace' }}>{item.key}</Typography>
+                        </Stack>
                       </Box>
-                    )}
 
-                    {/* Test Connection Button (for active services) */}
-                    {testKey && (
-                      <Tooltip title={`Test ${testKey.toUpperCase()} connectivity`}>
-                        <span>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={
-                              testingService === testKey ? (
-                                <CircularProgress size={14} />
-                              ) : (
-                                <NetworkCheckIcon fontSize="small" />
-                              )
-                            }
-                            onClick={() => handleTestService(testKey)}
-                            disabled={testingService === testKey}
-                            sx={{ fontWeight: 700, textTransform: 'none', height: 36 }}
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexShrink: 0, flexWrap: 'wrap', rowGap: 1 }}>
+                        {isBoolean ? (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.8rem', color: displayVal === 'true' ? '#16A34A' : 'text.secondary' }}>{displayVal === 'true' ? 'ON' : 'OFF'}</Typography>
+                            <Switch checked={displayVal === 'true'} onChange={() => handleToggleBoolean(item, displayVal === 'true')} color="primary" />
+                          </Stack>
+                        ) : isPrimaryProvider ? (
+                          <Select
+                            size="small" value={displayVal}
+                            onChange={(e) => {
+                              apiClient.post('/admin/settings', { key: item.key, value: e.target.value }).then(() => {
+                                enqueueSnackbar(`Primary flight engine switched to ${e.target.value}`, { variant: 'success' });
+                                fetchSettings();
+                              });
+                            }}
+                            sx={{ fontWeight: 700, minWidth: 160 }}
                           >
-                            Test
+                            <MenuItem value="DUFFEL">Duffel Engine</MenuItem>
+                            <MenuItem value="GOOGLE">Google Flights</MenuItem>
+                            <MenuItem value="AMADEUS">Amadeus GDS</MenuItem>
+                          </Select>
+                        ) : (
+                          <Box sx={{ px: 1.75, height: 38, display: 'flex', alignItems: 'center', borderRadius: '10px', bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,.05)' : 'rgba(15,23,42,.05)'), fontFamily: isSecret ? 'monospace' : 'inherit', fontSize: '0.84rem', fontWeight: 600, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {displayVal || '—'}
+                          </Box>
+                        )}
+
+                        {testKey && (
+                          <Tooltip title={`Test ${testKey.toUpperCase()} connection`}>
+                            <span>
+                              <Button size="small" variant="outlined" startIcon={testingService === testKey ? <CircularProgress size={14} /> : <NetworkCheckIcon fontSize="small" />} onClick={() => handleTestService(testKey)} disabled={testingService === testKey} sx={{ fontWeight: 700, textTransform: 'none', height: 38 }}>
+                                Test
+                              </Button>
+                            </span>
+                          </Tooltip>
+                        )}
+                        {!isBoolean && !isPrimaryProvider && (
+                          <Button size="small" variant="contained" startIcon={<EditIcon fontSize="small" />} onClick={() => handleOpenEdit(item)} sx={{ fontWeight: 700, textTransform: 'none', height: 38 }}>
+                            {isConfigured ? 'Change' : 'Set'}
                           </Button>
-                        </span>
-                      </Tooltip>
-                    )}
-
-                    {/* Edit Button (if not a pure switch) */}
-                    {!isBoolean && !isPrimaryProvider && (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        startIcon={<EditIcon fontSize="small" />}
-                        onClick={() => handleOpenEdit(item)}
-                        sx={{ fontWeight: 700, textTransform: 'none', height: 36 }}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </Stack>
-                </Stack>
-
-                {/* Show Test Results Banner if available */}
-                {testResult && (
-                  <Box
-                    sx={{
-                      mt: 2,
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      bgcolor: testResult.status === 'CONNECTED' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
-                      border: '1px solid',
-                      borderColor: testResult.status === 'CONNECTED' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                    }}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      {testResult.status === 'CONNECTED' ? (
-                        <CheckCircleIcon sx={{ fontSize: 18, color: '#10B981' }} />
-                      ) : (
-                        <ErrorOutlineIcon sx={{ fontSize: 18, color: '#F59E0B' }} />
-                      )}
-                      <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.8rem' }}>
-                        {testResult.status} ({testResult.latencyMs}ms): {testResult.message}
-                      </Typography>
+                        )}
+                      </Stack>
                     </Stack>
-                  </Box>
-                )}
-              </GlassCard>
-            );
-          })
-        )}
+
+                    {testResult && (
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.75, p: 1.25, borderRadius: '10px', bgcolor: testResult.status === 'CONNECTED' ? 'rgba(22,163,74,.1)' : 'rgba(245,158,11,.1)' }}>
+                        {testResult.status === 'CONNECTED' ? <CheckCircleIcon sx={{ fontSize: 18, color: '#16A34A' }} /> : <ErrorOutlineIcon sx={{ fontSize: 18, color: '#F59E0B' }} />}
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem' }}>{testResult.status} · {testResult.latencyMs}ms · {testResult.message}</Typography>
+                      </Stack>
+                    )}
+                  </GlassCard>
+                );
+              })}
+            </Stack>
+          )}
+        </Box>
       </Box>
 
-      {/* Edit Credential / Setting Dialog */}
-      <Dialog
-        open={Boolean(editingSetting)}
-        onClose={() => setEditingSetting(null)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Update {editingSetting?.label}</span>
-          <IconButton size="small" onClick={() => setEditingSetting(null)}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-        <Divider />
-        <DialogContent sx={{ py: 3 }}>
+      {/* Edit dialog */}
+      <Dialog open={Boolean(editingSetting)} onClose={() => !saving && setEditingSetting(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '20px', overflow: 'hidden' } }}>
+        <Box sx={{ position: 'relative', p: 3, color: '#fff', background: `linear-gradient(120deg, #4C1D95, ${accent})` }}>
+          <Box sx={{ position: 'absolute', right: -30, top: -40, width: 140, height: 140, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.1)' }} />
+          <IconButton size="small" onClick={() => setEditingSetting(null)} disabled={saving} sx={{ position: 'absolute', top: 10, right: 10, color: '#fff' }} aria-label="close"><CloseIcon fontSize="small" /></IconButton>
+          <Typography sx={{ opacity: 0.85, fontSize: '0.72rem', fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>Update setting</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.3, position: 'relative' }}>{editingSetting?.label}</Typography>
+        </Box>
+        <DialogContent sx={{ pt: 3 }}>
           {editingSetting && (
             <Stack spacing={2}>
-              <Typography variant="body2" color="text.secondary">
-                {editingSetting.description}
-              </Typography>
+              <Typography variant="body2" color="text.secondary">{editingSetting.description}</Typography>
               <TextField
-                autoFocus
-                label={editingSetting.label}
+                autoFocus label={editingSetting.label} fullWidth value={editValue} onChange={(e) => setEditValue(e.target.value)}
                 type={editingSetting.isSecret && !showSecret ? 'password' : 'text'}
-                fullWidth
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                placeholder={editingSetting.isSecret ? 'Enter new secret key...' : 'Enter new value...'}
+                placeholder={editingSetting.isSecret ? 'Paste the new secret…' : 'Enter the new value…'}
                 InputProps={{
                   endAdornment: editingSetting.isSecret ? (
                     <InputAdornment position="end">
-                      <IconButton onClick={() => setShowSecret((prev) => !prev)} edge="end">
-                        {showSecret ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                      </IconButton>
+                      <IconButton onClick={() => setShowSecret((prev) => !prev)} edge="end">{showSecret ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}</IconButton>
                     </InputAdornment>
                   ) : null,
                 }}
               />
-              <Typography variant="caption" color="text.secondary">
-                Setting Key: <Typography component="span" sx={{ fontFamily: 'monospace' }}>{editingSetting.key}</Typography>
-              </Typography>
+              <Typography variant="caption" color="text.secondary">Key: <span style={{ fontFamily: 'monospace' }}>{editingSetting.key}</span></Typography>
+              {editingSetting.isSecret && <Stack direction="row" spacing={1} alignItems="center" sx={{ p: 1.25, borderRadius: '10px', bgcolor: 'rgba(245,158,11,.1)' }}><LockIcon sx={{ fontSize: 16, color: '#F59E0B' }} /><Typography sx={{ fontSize: '0.78rem' }}>The old value is never shown. Saving replaces it.</Typography></Stack>}
             </Stack>
           )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setEditingSetting(null)} variant="outlined">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveSetting}
-            variant="contained"
-            disabled={saving}
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null}
-            sx={{ fontWeight: 700 }}
-          >
-            Save Setting
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setEditingSetting(null)} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSaveSetting} variant="contained" disabled={saving || !editValue.trim()} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : null} sx={{ fontWeight: 800 }}>
+            Save setting
           </Button>
         </DialogActions>
       </Dialog>

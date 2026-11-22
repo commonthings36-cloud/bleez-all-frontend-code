@@ -369,7 +369,7 @@ export const TravelBookingsPage: React.FC = () => {
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
               autoHeight
-              sx={{ border: 0 }}
+              sx={{ border: 0, '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' } }}
             />
           )}
         </Box>

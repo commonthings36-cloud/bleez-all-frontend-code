@@ -194,369 +194,188 @@ export const SchedulerPage: React.FC = () => {
     }
   };
 
+  const fadeUp = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`;
+  const spin = keyframes`to{transform:rotate(360deg)}`;
+
+  const healthy = (serverHealth?.status || 'HEALTHY') === 'HEALTHY';
+  const heap = Math.min(100, Math.max(0, Math.round(serverHealth?.heapPercent ?? 0)));
+  const mongoOk = String(serverHealth?.mongoStatus || 'UP').toUpperCase() === 'UP' || String(serverHealth?.mongoStatus || '').toUpperCase() === 'CONNECTED';
+  const fmtMs = (ms?: number) => (ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
+  const taskColor = (st: string) => (st === 'RUNNING' ? '#0EA5E9' : st === 'PAUSED' ? '#F59E0B' : '#16A34A');
+  const okLog = (st?: string) => ['SUCCESS', 'OK', 'COMPLETED'].includes(String(st).toUpperCase());
+  const pill = (c: string) => ({ alignSelf: 'center', height: 26, borderRadius: '8px', fontWeight: 700, fontSize: '0.7rem', bgcolor: `${c}1a`, color: c });
+  const cellText = { fontSize: '0.84rem', lineHeight: 1.4 } as const;
+
+  const health = [
+    {
+      label: 'Backend server', value: serverHealth?.serverStatus || 'UP', color: healthy ? '#16A34A' : '#EF4444', icon: <DnsIcon />,
+      sub: `Up for ${serverHealth?.uptime || '—'}`, extra: <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: healthy ? '#16A34A' : '#EF4444', animation: `${pulseDot} 2s infinite`, ml: 1 }} />,
+    },
+    { label: 'Memory (heap)', value: `${heap}%`, color: heap > 85 ? '#EF4444' : heap > 65 ? '#F59E0B' : '#7C3AED', icon: <MemoryIcon />, sub: `${serverHealth?.heapUsedMb ?? '—'} / ${serverHealth?.heapMaxMb ?? serverHealth?.heapTotalMb ?? '—'} MB`, bar: heap },
+    { label: 'Database', value: serverHealth?.mongoStatus || 'UP', color: mongoOk ? '#0EA5E9' : '#EF4444', icon: <StorageIcon />, sub: `Ping ${serverHealth?.mongoPingMs ?? '—'} ms` },
+    { label: 'Requests (24h)', value: (serverHealth?.totalRequests24h ?? 0).toLocaleString(), color: '#F59E0B', icon: <SpeedIcon />, sub: `${serverHealth?.errorRate24h ?? 0}% errors · ${serverHealth?.activeThreads ?? 0} threads` },
+  ];
+
+  const activeCount = tasks.filter((t) => t.status !== 'PAUSED').length;
+
   return (
     <Box>
       <PageHeader
-        title="Scheduler & Background Cron Jobs"
-        subtitle="Manage scheduled background tasks, trigger 'Run Now', pause/resume cron jobs, and inspect server health logs."
+        title="Task Scheduler"
+        subtitle="Background jobs that keep Bleez running: run one now, pause it, or check how it went"
         breadcrumbs={[{ label: 'Platform' }, { label: 'Task Scheduler' }]}
         action={
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <RefreshIcon />}
-              onClick={fetchOverview}
-              disabled={loading}
-              sx={{ fontWeight: 700 }}
-            >
-              Refresh
-            </Button>
-          </Stack>
+          <Button variant="contained" startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <RefreshIcon />} onClick={fetchOverview} disabled={loading} sx={{ fontWeight: 700 }}>
+            Refresh
+          </Button>
         }
       />
 
       {loading && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />}
 
-      {/* Server Health & Telemetry Metrics Row */}
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          mb: 3,
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-        }}
-      >
-        {/* 1. Server Uptime & Status */}
-        <GlassCard sx={{ p: 2.5, position: 'relative', overflow: 'hidden' }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Backend Server Health
-            </Typography>
-            <Box
-              sx={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                bgcolor: serverHealth?.status === 'HEALTHY' ? '#10B981' : '#EF4444',
-                animation: `${pulseDot} 2s infinite`,
-              }}
-            />
-          </Stack>
-          <Stack direction="row" spacing={1} alignItems="baseline">
-            <Typography variant="h5" sx={{ fontWeight: 800 }}>
-              {serverHealth?.serverStatus || 'UP'}
-            </Typography>
-            <Chip
-              size="small"
-              label={serverHealth?.status || 'HEALTHY'}
-              sx={{ bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#10B981', fontWeight: 700, height: 22 }}
-            />
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
-            Uptime: <strong>{serverHealth?.uptime || '—'}</strong>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            OS: {serverHealth?.osName || 'Linux'} · JVM: {serverHealth?.javaVersion || 'Java 17'}
-          </Typography>
-        </GlassCard>
-
-        {/* 2. JVM Heap Memory */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              JVM Heap Memory
-            </Typography>
-            <MemoryIcon sx={{ fontSize: 20, color: '#6366F1' }} />
-          </Stack>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            {serverHealth ? `${serverHealth.heapUsedMb} MB` : '—'}
-          </Typography>
-          <Box sx={{ width: '100%', mt: 1 }}>
-            <LinearProgress
-              variant="determinate"
-              value={Math.min(100, serverHealth?.heapPercent || 0)}
-              sx={{ height: 6, borderRadius: 3, bgcolor: 'rgba(99, 102, 241, 0.15)' }}
-            />
-          </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-            {serverHealth ? `${serverHealth.heapPercent}% of ${serverHealth.heapMaxMb} MB max` : 'Calculating...'}
-          </Typography>
-        </GlassCard>
-
-        {/* 3. Threads & CPU Concurrency */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Active Concurrency
-            </Typography>
-            <SpeedIcon sx={{ fontSize: 20, color: '#EC4899' }} />
-          </Stack>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            {serverHealth ? `${serverHealth.activeThreads} Threads` : '—'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
-            Peak Threads: <strong>{serverHealth?.peakThreads ?? '—'}</strong>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            CPU Cores: {serverHealth?.availableProcessors ?? '—'} Available Workers
-          </Typography>
-        </GlassCard>
-
-        {/* 4. Traffic & Database Ping */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Database & Traffic
-            </Typography>
-            <StorageIcon sx={{ fontSize: 20, color: '#10B981' }} />
-          </Stack>
-          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-            {serverHealth ? `${serverHealth.mongoStatus}` : '—'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontSize: '0.8rem' }}>
-            MongoDB Ping: <strong>{serverHealth?.mongoPingMs ?? 0} ms</strong>
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            24h Traffic: {serverHealth?.totalRequests24h?.toLocaleString() ?? 0} req ({serverHealth?.errorRate24h ?? 0}% err)
-          </Typography>
-        </GlassCard>
+      <Box sx={{ display: 'grid', gap: 2, mb: 3, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' } }}>
+        {health.map((h, i) => (
+          <GlassCard key={h.label} sx={{ p: 2.5, height: 136, animation: `${fadeUp} .45s ease ${i * 0.07}s both` }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography color="text.secondary" sx={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>{h.label}</Typography>
+                <Stack direction="row" alignItems="center">
+                  <Typography sx={{ fontSize: String(h.value).length > 7 ? '1.3rem' : '1.8rem', fontWeight: 800, lineHeight: String(h.value).length > 7 ? 1.9 : 1.3, color: h.color }}>{h.value}</Typography>
+                  {h.extra}
+                </Stack>
+              </Box>
+              <Box sx={{ width: 42, height: 42, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: `${h.color}1a`, color: h.color }}>{h.icon}</Box>
+            </Stack>
+            {h.bar != null && <LinearProgress variant="determinate" value={h.bar} sx={{ height: 6, borderRadius: 3, my: 0.75, bgcolor: `${h.color}22`, '& .MuiLinearProgress-bar': { bgcolor: h.color, borderRadius: 3 } }} />}
+            <Typography noWrap color="text.secondary" sx={{ fontSize: '0.8rem', mt: h.bar != null ? 0 : 0.5 }}>{h.sub}</Typography>
+          </GlassCard>
+        ))}
       </Box>
 
-      {/* Main Scheduler Management Card */}
-      <GlassCard sx={{ p: 3 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} spacing={2} sx={{ mb: 2.5 }}>
-          <Tabs value={tab} onChange={(_, val) => setTab(val)} textColor="primary" indicatorColor="primary">
-            <Tab label={`Background Tasks (${tasks.length})`} value="tasks" sx={{ fontWeight: 700 }} />
-            <Tab label={`Execution Logs (${logs.length})`} value="logs" sx={{ fontWeight: 700 }} />
+      <GlassCard sx={{ animation: `${fadeUp} .5s ease .25s both` }}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ md: 'center' }} sx={{ px: 2.5, pt: 1.5 }}>
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ minHeight: 44 }}>
+            <Tab value="tasks" icon={<AccessTimeIcon fontSize="small" />} iconPosition="start" label={`Scheduled jobs (${tasks.length})`} sx={{ minHeight: 44, fontWeight: 700, textTransform: 'none' }} />
+            <Tab value="logs" icon={<HistoryIcon fontSize="small" />} iconPosition="start" label={`Run history (${logs.length})`} sx={{ minHeight: 44, fontWeight: 700, textTransform: 'none' }} />
           </Tabs>
-
           {tab === 'tasks' && (
-            <TextField
-              size="small"
-              placeholder="Search scheduled tasks..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 260 }}
-            />
+            <TextField size="small" placeholder="Search jobs…" value={search} onChange={(e) => setSearch(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }} sx={{ minWidth: { md: 280 } }} />
           )}
         </Stack>
 
-        {/* Tab 1: Scheduled Tasks Table */}
-        {tab === 'tasks' && (
-          <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'rgba(0, 0, 0, 0.02)' }}>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Task Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Schedule</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Last Run</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Duration</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Runs</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredTasks.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} sx={{ py: 6, textAlign: 'center' }}>
-                      <EmptyState title="No Tasks Found" description="Try adjusting your search criteria." />
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredTasks.map((t) => {
-                    const isRunning = runningTaskId === t.id || t.status === 'RUNNING';
-                    const isPaused = t.status === 'PAUSED';
-
+        <Box sx={{ p: 2.5, pt: 2 }}>
+          {tab === 'tasks' && (
+            filteredTasks.length === 0 && !loading ? (
+              <EmptyState icon={<AccessTimeIcon />} title={tasks.length ? 'No jobs match your search' : 'No scheduled jobs found'} description={tasks.length ? 'Try a different word.' : 'The server did not report any background jobs.'} />
+            ) : (
+              <>
+                <Typography color="text.secondary" sx={{ fontSize: '0.84rem', mb: 1.5 }}>{activeCount} of {tasks.length} jobs are running on their schedule</Typography>
+                <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+                  {filteredTasks.map((t, i) => {
+                    const c = taskColor(t.status);
+                    const busy = runningTaskId === t.id || t.status === 'RUNNING';
                     return (
-                      <TableRow key={t.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell sx={{ py: 1.8 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            {t.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', maxWidth: 360 }}>
-                            {t.description}
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell sx={{ py: 1.8 }}>
-                          <Chip
-                            size="small"
-                            label={t.intervalText}
-                            icon={<AccessTimeIcon sx={{ fontSize: '14px !important' }} />}
-                            sx={{ fontWeight: 600, fontSize: '0.75rem', bgcolor: 'rgba(99, 102, 241, 0.08)', color: '#6366F1' }}
-                          />
-                        </TableCell>
-
-                        <TableCell sx={{ py: 1.8 }}>
-                          {isRunning ? (
-                            <Chip
-                              size="small"
-                              label="RUNNING"
-                              icon={<CircularProgress size={12} color="inherit" />}
-                              sx={{ fontWeight: 700, bgcolor: 'rgba(59, 130, 246, 0.12)', color: '#2563EB' }}
-                            />
-                          ) : isPaused ? (
-                            <Chip
-                              size="small"
-                              label="PAUSED"
-                              sx={{ fontWeight: 700, bgcolor: 'rgba(245, 158, 11, 0.12)', color: '#D97706' }}
-                            />
-                          ) : (
-                            <Chip
-                              size="small"
-                              label="ACTIVE"
-                              sx={{ fontWeight: 700, bgcolor: 'rgba(16, 185, 129, 0.12)', color: '#10B981' }}
-                            />
-                          )}
-                        </TableCell>
-
-                        <TableCell sx={{ py: 1.8 }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>
-                            {formatTimestamp(t.lastRunTime)}
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell sx={{ py: 1.8 }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.82rem' }}>
-                            {t.lastDurationMs} ms
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell sx={{ py: 1.8 }}>
-                          <Typography variant="body2" sx={{ fontSize: '0.82rem' }}>
-                            {t.totalRuns.toLocaleString()}{' '}
-                            {t.failureCount > 0 && (
-                              <Typography component="span" color="error.main" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>
-                                ({t.failureCount} err)
-                              </Typography>
-                            )}
-                          </Typography>
-                        </TableCell>
-
-                        <TableCell align="right" sx={{ py: 1.8 }}>
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
-                            <Tooltip title="Trigger immediate execution">
-                              <span>
-                                <Button
-                                  size="small"
-                                  variant="outlined"
-                                  color="primary"
-                                  startIcon={isRunning ? <CircularProgress size={12} /> : <PlayArrowIcon />}
-                                  onClick={() => handleRunNow(t.id)}
-                                  disabled={isRunning}
-                                  sx={{ fontWeight: 700, textTransform: 'none', px: 1.5 }}
-                                >
-                                  Run Now
-                                </Button>
-                              </span>
-                            </Tooltip>
-
-                            <Tooltip title={isPaused ? 'Resume scheduled execution' : 'Pause scheduled runs'}>
-                              <IconButton
-                                size="small"
-                                color={isPaused ? 'success' : 'default'}
-                                onClick={() => handleToggle(t.id)}
-                                sx={{ border: '1px solid rgba(0, 0, 0, 0.12)' }}
-                              >
-                                {isPaused ? <PlayArrowIcon fontSize="small" /> : <PauseIcon fontSize="small" />}
-                              </IconButton>
-                            </Tooltip>
+                      <Box key={t.id} sx={{ p: 2.25, minHeight: 236, borderRadius: '16px', border: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', animation: `${fadeUp} .4s ease ${i * 0.04}s both`, transition: 'transform .2s, box-shadow .2s', '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 14px 30px -14px rgba(124,58,237,.35)' } }}>
+                        <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, bgcolor: c }} />
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                            <Box sx={{ width: 40, height: 40, borderRadius: '12px', flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: `${c}1a`, color: c }}>
+                              {busy ? <CircularProgress size={20} color="inherit" /> : <TerminalIcon fontSize="small" />}
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.35 }}>{t.name}</Typography>
+                              <Typography noWrap color="text.secondary" sx={{ fontSize: '0.72rem', fontFamily: 'monospace' }}>{t.id}</Typography>
+                            </Box>
                           </Stack>
-                        </TableCell>
-                      </TableRow>
+                          <Chip size="small" label={t.status === 'RUNNING' ? 'Running' : t.status === 'PAUSED' ? 'Paused' : 'Active'} sx={pill(c)} />
+                        </Stack>
+                        <Typography color="text.secondary" sx={{ fontSize: '0.82rem', lineHeight: 1.5, mt: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{t.description}</Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 1.25 }} flexWrap="wrap" useFlexGap>
+                          <Chip size="small" icon={<AccessTimeIcon sx={{ fontSize: 14 }} />} label={t.intervalText} sx={{ height: 24, borderRadius: '7px', fontWeight: 700, fontSize: '0.7rem' }} />
+                          <Chip size="small" label={t.type} variant="outlined" sx={{ height: 24, borderRadius: '7px', fontWeight: 700, fontSize: '0.7rem' }} />
+                        </Stack>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, mt: 1.5, py: 1, borderTop: '1px dashed', borderBottom: '1px dashed', borderColor: 'divider' }}>
+                          {[
+                            { k: 'Runs', v: (t.totalRuns ?? 0).toLocaleString() },
+                            { k: 'Failures', v: String(t.failureCount ?? 0), bad: (t.failureCount ?? 0) > 0 },
+                            { k: 'Last took', v: fmtMs(t.lastDurationMs) },
+                          ].map((m) => (
+                            <Box key={m.k} sx={{ textAlign: 'center' }}>
+                              <Typography sx={{ fontWeight: 800, fontSize: '0.98rem', color: m.bad ? '#EF4444' : 'text.primary' }}>{m.v}</Typography>
+                              <Typography color="text.secondary" sx={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase' }}>{m.k}</Typography>
+                            </Box>
+                          ))}
+                        </Box>
+                        <Typography noWrap color="text.secondary" sx={{ fontSize: '0.74rem', mt: 1 }}>Last run: {formatTimestamp(t.lastRunTime)}</Typography>
+                        <Box sx={{ flexGrow: 1 }} />
+                        <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
+                          <Button fullWidth size="small" variant="contained" disabled={busy || t.status === 'PAUSED'} startIcon={busy ? <Box component="span" sx={{ display: 'inline-flex', animation: `${spin} 1s linear infinite` }}><RefreshIcon sx={{ fontSize: 16 }} /></Box> : <PlayArrowIcon />} onClick={() => handleRunNow(t.id)} sx={{ fontWeight: 700 }}>
+                            {busy ? 'Running…' : 'Run now'}
+                          </Button>
+                          <Button fullWidth size="small" variant="outlined" color={t.status === 'PAUSED' ? 'success' : 'warning'} startIcon={t.status === 'PAUSED' ? <PlayArrowIcon /> : <PauseIcon />} onClick={() => handleToggle(t.id)} sx={{ fontWeight: 700 }}>
+                            {t.status === 'PAUSED' ? 'Resume' : 'Pause'}
+                          </Button>
+                        </Stack>
+                      </Box>
                     );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
+                  })}
+                </Box>
+              </>
+            )
+          )}
 
-        {/* Tab 2: Execution Logs Table */}
-        {tab === 'logs' && (
-          <Box sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: 'rgba(0, 0, 0, 0.02)' }}>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Executed At</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Task Name</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Trigger Type</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Duration</TableCell>
-                  <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Message</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {logs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} sx={{ py: 6, textAlign: 'center' }}>
-                      <EmptyState title="No Execution Logs Yet" description="Logs will stream here as scheduled tasks run." />
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  logs.map((log) => {
-                    const taskTitle = log.taskName || log.task_name || log.taskId || log.task_id || 'Scheduled Task';
-                    const rawTrigger = log.triggeredBy || log.triggered_by || 'AUTOMATIC';
-                    const triggerLabel = String(rawTrigger).replace(/_/g, ' ');
-                    const execTime = log.executedAt || log.executed_at;
-                    const duration = log.durationMs ?? log.duration_ms ?? 0;
-                    const status = log.status || 'SUCCESS';
-                    const msg = log.message || '';
-                    const isSuccess = status === 'SUCCESS';
-
-                    return (
-                      <TableRow key={log.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
-                        <TableCell sx={{ py: 1.5, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                          {formatTimestamp(execTime)}
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5, fontWeight: 700, fontSize: '0.84rem' }}>
-                          {taskTitle}
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5 }}>
-                          <Chip
-                            size="small"
-                            label={triggerLabel}
-                            sx={{ fontSize: '0.7rem', fontWeight: 600, height: 22 }}
-                          />
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5 }}>
-                          <Chip
-                            size="small"
-                            label={status}
-                            sx={{
-                              fontWeight: 700,
-                              fontSize: '0.72rem',
-                              height: 22,
-                              bgcolor: isSuccess ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                              color: isSuccess ? '#10B981' : '#EF4444',
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5, fontWeight: 600, fontSize: '0.82rem' }}>
-                          {duration} ms
-                        </TableCell>
-                        <TableCell sx={{ py: 1.5, fontSize: '0.8rem', color: 'text.secondary', maxWidth: 400 }}>
-                          <Typography noWrap variant="body2" sx={{ fontSize: '0.8rem' }}>
-                            {msg}
-                          </Typography>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </Box>
-        )}
+          {tab === 'logs' && (
+            logs.length === 0 ? (
+              <EmptyState icon={<HistoryIcon />} title="No runs recorded yet" description="Every time a job runs, it will be listed here." />
+            ) : (
+              <Box sx={{ overflowX: 'auto' }}>
+                <Table sx={{ minWidth: 820 }}>
+                  <TableHead>
+                    <TableRow>
+                      {['When', 'Job', 'Triggered by', 'Duration', 'Result', 'Message'].map((h) => (
+                        <TableCell key={h} sx={{ fontWeight: 800, fontSize: '0.72rem', letterSpacing: 0.5, textTransform: 'uppercase', color: 'text.secondary' }}>{h}</TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {logs.map((l) => {
+                      const ok = okLog(l.status);
+                      const c = ok ? '#16A34A' : '#EF4444';
+                      return (
+                        <TableRow key={l.id} hover onClick={() => setLogDetails(l)} sx={{ cursor: 'pointer', '& td': { py: 1.25 } }}>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}><Typography sx={cellText}>{formatTimestamp(l.executedAt || l.executed_at)}</Typography></TableCell>
+                          <TableCell><Typography sx={{ ...cellText, fontWeight: 700 }}>{l.taskName || l.task_name || l.taskId || l.task_id}</Typography></TableCell>
+                          <TableCell><Chip size="small" label={l.triggeredBy || l.triggered_by || 'SYSTEM'} variant="outlined" sx={{ ...pill('#64748B'), bgcolor: 'transparent', border: '1px solid', borderColor: 'divider' }} /></TableCell>
+                          <TableCell><Typography sx={cellText}>{fmtMs(l.durationMs ?? l.duration_ms)}</Typography></TableCell>
+                          <TableCell><Chip size="small" icon={ok ? <CheckCircleIcon sx={{ fontSize: '14px !important', color: `${c} !important` }} /> : <WarningAmberIcon sx={{ fontSize: '14px !important', color: `${c} !important` }} />} label={l.status} sx={pill(c)} /></TableCell>
+                          <TableCell sx={{ maxWidth: 340 }}><Typography noWrap color="text.secondary" sx={cellText}>{l.message || '—'}</Typography></TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Box>
+            )
+          )}
+        </Box>
       </GlassCard>
+
+      <Dialog open={Boolean(logDetails)} onClose={() => setLogDetails(null)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '18px' } }}>
+        <DialogTitle sx={{ fontWeight: 800 }}>{logDetails?.taskName || logDetails?.task_name || 'Run details'}</DialogTitle>
+        <DialogContent dividers>
+          {logDetails && (
+            <Stack spacing={1.5}>
+              <Stack direction="row" spacing={1}>
+                <Chip size="small" label={logDetails.status} sx={{ ...pill(okLog(logDetails.status) ? '#16A34A' : '#EF4444'), alignSelf: 'auto' }} />
+                <Chip size="small" label={`Took ${fmtMs(logDetails.durationMs ?? logDetails.duration_ms)}`} variant="outlined" />
+              </Stack>
+              <Typography variant="body2" color="text.secondary">Ran at {formatTimestamp(logDetails.executedAt || logDetails.executed_at)} · started by {logDetails.triggeredBy || logDetails.triggered_by || 'SYSTEM'}</Typography>
+              <Box component="pre" sx={{ m: 0, p: 2, borderRadius: '12px', whiteSpace: 'pre-wrap', fontSize: '0.82rem', bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(0,0,0,.35)' : 'rgba(15,23,42,.05)') }}>{logDetails.message || 'No message.'}</Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}><Button onClick={() => setLogDetails(null)}>Close</Button></DialogActions>
+      </Dialog>
     </Box>
   );
 };

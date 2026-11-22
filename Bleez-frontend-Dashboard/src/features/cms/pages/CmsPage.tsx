@@ -1,51 +1,61 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Box,
-  Typography,
-  Stack,
-  Chip,
   Button,
-  IconButton,
-  TextField,
-  InputAdornment,
-  Tabs,
-  Tab,
+  Chip,
+  CircularProgress,
   Dialog,
-  DialogTitle,
-  DialogContent,
   DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  IconButton,
+  InputAdornment,
+  InputLabel,
   MenuItem,
   Select,
-  FormControl,
-  InputLabel,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  Stack,
+  Switch,
+  Tab,
+  Tabs,
+  TextField,
   Tooltip,
-  Divider,
+  Typography,
   keyframes,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import ViewCarouselOutlinedIcon from '@mui/icons-material/ViewCarouselOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import SupportAgentIcon from '@mui/icons-material/SupportAgent';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import DescriptionIcon from '@mui/icons-material/Description';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import HourglassTopIcon from '@mui/icons-material/HourglassTop';
 import CancelIcon from '@mui/icons-material/Cancel';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import AddIcon from '@mui/icons-material/Add';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import PublishIcon from '@mui/icons-material/Publish';
+import CloudOffIcon from '@mui/icons-material/CloudOff';
+import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import { useSnackbar } from 'notistack';
 
-import { PageHeader } from '@/components/PageHeader';
 import { GlassCard } from '@/components/GlassCard';
+import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { TravelHeroArt } from '@/components/Illustrations';
 import { apiClient } from '@/services/apiClient';
 
+// ---------------------------------------------------------------------------
+// Support Tickets Types & Interfaces
+// ---------------------------------------------------------------------------
 interface SupportTicketRecord {
   id: string;
   ticketNumber?: string;
@@ -63,52 +73,148 @@ interface SupportTicketRecord {
   resolvedAt?: string;
 }
 
-interface FaqItem {
-  id?: string;
-  category: string;
-  question: string;
-  answer: string;
+// ---------------------------------------------------------------------------
+// Content Management Types & Constants
+// ---------------------------------------------------------------------------
+const ENDPOINT = '/admin/cms/content';
+const DRAFT_KEY = 'bleez-cms-draft-v1';
+
+interface CmsPageDoc {
+  id: string;
+  title: string;
+  body: string;
+  status: 'DRAFT' | 'PUBLISHED';
+  updatedAt?: string;
 }
 
-const fadeUp = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
+interface Faq {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  visible: boolean;
+}
 
+interface Banner {
+  id: string;
+  title: string;
+  subtitle: string;
+  cta: string;
+  link: string;
+  color: string;
+  active: boolean;
+  startsAt?: string;
+  endsAt?: string;
+}
+
+interface Content {
+  pages: CmsPageDoc[];
+  faqs: Faq[];
+  banners: Banner[];
+}
+
+const STARTER: Content = {
+  pages: [
+    { id: 'terms', title: 'Terms of Service', body: '', status: 'DRAFT' },
+    { id: 'privacy', title: 'Privacy Policy', body: '', status: 'DRAFT' },
+    { id: 'about', title: 'About Bleez', body: '', status: 'DRAFT' },
+    { id: 'refund', title: 'Refund & Cancellation Policy', body: '', status: 'DRAFT' },
+  ],
+  faqs: [],
+  banners: [],
+};
+
+const FAQ_CATEGORIES = ['General', 'Trips & AI', 'Bookings', 'Payments', 'Safety', 'Account'];
+const BANNER_COLORS = ['#7C3AED', '#2563EB', '#0EA5E9', '#F97316', '#DB2777', '#16A34A'];
+
+const fadeUp = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const fmt = (v?: string) => (v ? new Date(v).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+
+const loadDraft = (): Content | null => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Content) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveDraft = (c: Content) => {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(c));
+  } catch {
+    /* storage unavailable: edits stay in memory only */
+  }
+};
+
+const shade = (hex: string, amt: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c: number) => Math.round(amt < 0 ? c * (1 + amt) : c + (255 - c) * amt);
+  return `rgb(${f(n >> 16)}, ${f((n >> 8) & 255)}, ${f(n & 255)})`;
+};
+
+const BannerPreview: React.FC<{ b: Pick<Banner, 'title' | 'subtitle' | 'cta' | 'color'>; compact?: boolean }> = ({ b, compact }) => (
+  <Box
+    sx={{
+      position: 'relative',
+      overflow: 'hidden',
+      borderRadius: '16px',
+      color: '#fff',
+      p: compact ? 2 : 3,
+      minHeight: compact ? 130 : 160,
+      background: `linear-gradient(120deg, ${shade(b.color, -0.25)} 0%, ${b.color} 55%, ${shade(b.color, 0.28)} 100%)`,
+    }}
+  >
+    <Box sx={{ position: 'absolute', right: -30, top: -40, width: 160, height: 160, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.1)' }} />
+    <TravelHeroArt sx={{ position: 'absolute', right: 0, bottom: 0, width: compact ? 170 : 240, height: compact ? 110 : 160, opacity: 0.5 }} />
+    <Box sx={{ position: 'relative', maxWidth: '65%' }}>
+      <Typography sx={{ fontWeight: 800, fontSize: compact ? '1.05rem' : '1.35rem', lineHeight: 1.25 }}>{b.title || 'Your headline'}</Typography>
+      <Typography sx={{ opacity: 0.9, fontSize: '0.82rem', mt: 0.5, lineHeight: 1.45 }}>{b.subtitle || 'A short supporting line goes here.'}</Typography>
+      {b.cta && (
+        <Box
+          sx={{
+            display: 'inline-block',
+            mt: 1.5,
+            px: 1.75,
+            py: 0.6,
+            borderRadius: '9px',
+            bgcolor: '#fff',
+            color: b.color,
+            fontWeight: 800,
+            fontSize: '0.78rem',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
+          }}
+        >
+          {b.cta}
+        </Box>
+      )}
+    </Box>
+  </Box>
+);
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
 export const CmsPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState<number>(0);
 
-  // Tickets state
+  // -------------------------------------------------------------------------
+  // Support Tickets State
+  // -------------------------------------------------------------------------
   const [tickets, setTickets] = useState<SupportTicketRecord[]>([]);
   const [ticketLoading, setTicketLoading] = useState<boolean>(false);
   const [ticketSearch, setTicketSearch] = useState<string>('');
   const [ticketStatusFilter, setTicketStatusFilter] = useState<string>('ALL');
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState<string>('ALL');
 
-  // Selected ticket modal
   const [selectedTicket, setSelectedTicket] = useState<SupportTicketRecord | null>(null);
   const [updateStatusVal, setUpdateStatusVal] = useState<string>('');
   const [adminNoteVal, setAdminNoteVal] = useState<string>('');
   const [updatingTicket, setUpdatingTicket] = useState<boolean>(false);
 
-  // FAQs state
-  const [faqs, setFaqs] = useState<FaqItem[]>([]);
-  const [faqSearch, setFaqSearch] = useState<string>('');
-  const [faqCategoryFilter, setFaqCategoryFilter] = useState<string>('ALL');
-  const [faqLoading, setFaqLoading] = useState<boolean>(false);
-
-  // Add FAQ Dialog
-  const [addFaqOpen, setAddFaqOpen] = useState<boolean>(false);
-  const [newFaqCategory, setNewFaqCategory] = useState<string>('General');
-  const [newFaqQuestion, setNewFaqQuestion] = useState<string>('');
-  const [newFaqAnswer, setNewFaqAnswer] = useState<string>('');
-
-  // Legal / Policy documents state
-  const [privacyPolicy, setPrivacyPolicy] = useState<any>(null);
-  const [termsContent, setTermsContent] = useState<any>(null);
-  const [aboutContent, setAboutContent] = useState<any>(null);
-  const [contentLoading, setContentLoading] = useState<boolean>(false);
-
-  // Fetch Support Tickets
-  const fetchTickets = () => {
+  const fetchTickets = useCallback(() => {
     setTicketLoading(true);
     apiClient
       .get('/admin/support/tickets')
@@ -125,182 +231,241 @@ export const CmsPage: React.FC = () => {
       .finally(() => {
         setTicketLoading(false);
       });
-  };
-
-  // Fetch FAQs
-  const fetchFaqs = () => {
-    setFaqLoading(true);
-    apiClient
-      .get('/public/faqs')
-      .then((res) => {
-        if (res.data && Array.isArray(res.data.faqs)) {
-          setFaqs(res.data.faqs);
-        } else if (Array.isArray(res.data)) {
-          setFaqs(res.data);
-        }
-      })
-      .catch((err) => {
-        console.debug('Failed to fetch FAQs:', err.message);
-      })
-      .finally(() => {
-        setFaqLoading(false);
-      });
-  };
-
-  // Fetch Legal Documents
-  const fetchLegalDocs = () => {
-    setContentLoading(true);
-    Promise.all([
-      apiClient.get('/public/content/privacy').catch(() => ({ data: null })),
-      apiClient.get('/public/content/terms').catch(() => ({ data: null })),
-      apiClient.get('/public/content/about').catch(() => ({ data: null })),
-    ])
-      .then(([privRes, termsRes, aboutRes]) => {
-        if (privRes?.data) setPrivacyPolicy(privRes.data);
-        if (termsRes?.data) setTermsContent(termsRes.data);
-        if (aboutRes?.data) setAboutContent(aboutRes.data);
-      })
-      .finally(() => {
-        setContentLoading(false);
-      });
-  };
-
-  useEffect(() => {
-    fetchTickets();
-    fetchFaqs();
-    fetchLegalDocs();
   }, []);
 
-  // Handle Ticket Status Update
-  const handleUpdateTicket = async () => {
+  const handleUpdateTicket = () => {
     if (!selectedTicket) return;
     setUpdatingTicket(true);
-    try {
-      await apiClient.put(`/admin/support/tickets/${selectedTicket.id}/status`, {
+    apiClient
+      .put(`/admin/support/tickets/${selectedTicket.id}`, {
         status: updateStatusVal,
         adminNote: adminNoteVal,
+      })
+      .then(() => {
+        enqueueSnackbar('Ticket updated successfully', { variant: 'success' });
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === selectedTicket.id
+              ? {
+                  ...t,
+                  status: updateStatusVal,
+                  adminNote: adminNoteVal,
+                  resolvedAt: updateStatusVal === 'RESOLVED' ? new Date().toISOString() : t.resolvedAt,
+                }
+              : t
+          )
+        );
+        setSelectedTicket(null);
+      })
+      .catch((err) => {
+        enqueueSnackbar(`Failed to update ticket: ${err.message}`, { variant: 'error' });
+      })
+      .finally(() => {
+        setUpdatingTicket(false);
       });
-      enqueueSnackbar(`Ticket ${selectedTicket.ticketNumber || selectedTicket.id} updated successfully!`, {
-        variant: 'success',
-      });
-      fetchTickets();
-      setSelectedTicket(null);
-    } catch (err: any) {
-      enqueueSnackbar(err?.response?.data?.message || 'Failed to update ticket status', { variant: 'error' });
+  };
+
+  // -------------------------------------------------------------------------
+  // Content State (Pages, FAQs, Banners)
+  // -------------------------------------------------------------------------
+  const [content, setContent] = useState<Content>(() => loadDraft() || STARTER);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [remoteSynced, setRemoteSynced] = useState<boolean | null>(null);
+
+  const [activePageId, setActivePageId] = useState<string>('terms');
+  const [faqCategory, setFaqCategory] = useState<string>('ALL');
+  const [faqQuery, setFaqQuery] = useState('');
+  const [faqEdit, setFaqEdit] = useState<Faq | null>(null);
+  const [bannerEdit, setBannerEdit] = useState<Banner | null>(null);
+
+  // Sync draft to local storage
+  useEffect(() => {
+    saveDraft(content);
+  }, [content]);
+
+  // Initial load
+  useEffect(() => {
+    fetchTickets();
+
+    setLoadingContent(true);
+    apiClient
+      .get(ENDPOINT)
+      .then((res) => {
+        if (res.data && Array.isArray(res.data.pages)) {
+          setContent(res.data);
+          setRemoteSynced(true);
+        } else {
+          setRemoteSynced(false);
+        }
+      })
+      .catch(() => {
+        setRemoteSynced(false);
+      })
+      .finally(() => setLoadingContent(false));
+  }, [fetchTickets]);
+
+  const publishRemote = async () => {
+    setSaving(true);
+    try {
+      await apiClient.put(ENDPOINT, content);
+      enqueueSnackbar('Published live to the platform website', { variant: 'success' });
+      setRemoteSynced(true);
+    } catch {
+      enqueueSnackbar('Backend endpoint /admin/cms/content not available yet. Saved locally as a draft.', { variant: 'info' });
+      setRemoteSynced(false);
     } finally {
-      setUpdatingTicket(false);
+      setSaving(false);
     }
   };
 
-  // Handle Ticket Delete
-  const handleDeleteTicket = async (ticketId: string) => {
-    if (!window.confirm('Are you sure you want to delete this support ticket?')) return;
-    try {
-      await apiClient.delete(`/admin/support/tickets/${ticketId}`);
-      enqueueSnackbar('Support ticket deleted successfully', { variant: 'info' });
-      fetchTickets();
-    } catch (err: any) {
-      enqueueSnackbar(err?.response?.data?.message || 'Failed to delete ticket', { variant: 'error' });
-    }
+  // Page Handlers
+  const activePage = content.pages.find((p) => p.id === activePageId) || content.pages[0];
+
+  const updatePage = (patch: Partial<CmsPageDoc>) => {
+    setContent((prev) => ({
+      ...prev,
+      pages: prev.pages.map((p) =>
+        p.id === activePageId ? { ...p, ...patch, updatedAt: new Date().toISOString() } : p
+      ),
+    }));
+  };
+
+  // FAQ Handlers
+  const filteredFaqs = useMemo(() => {
+    return content.faqs.filter((f) => {
+      const matchCat = faqCategory === 'ALL' || f.category === faqCategory;
+      const matchQuery =
+        !faqQuery.trim() ||
+        f.question.toLowerCase().includes(faqQuery.toLowerCase()) ||
+        f.answer.toLowerCase().includes(faqQuery.toLowerCase());
+      return matchCat && matchQuery;
+    });
+  }, [content.faqs, faqCategory, faqQuery]);
+
+  const saveFaq = () => {
+    if (!faqEdit) return;
+    setContent((prev) => {
+      const exists = prev.faqs.some((f) => f.id === faqEdit.id);
+      const next = exists ? prev.faqs.map((f) => (f.id === faqEdit.id ? faqEdit : f)) : [faqEdit, ...prev.faqs];
+      return { ...prev, faqs: next };
+    });
+    setFaqEdit(null);
+    enqueueSnackbar('FAQ saved', { variant: 'success' });
+  };
+
+  const moveFaq = (id: string, dir: -1 | 1) => {
+    setContent((prev) => {
+      const idx = prev.faqs.findIndex((f) => f.id === id);
+      if (idx < 0) return prev;
+      const target = idx + dir;
+      if (target < 0 || target >= prev.faqs.length) return prev;
+      const copy = [...prev.faqs];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(target, 0, item);
+      return { ...prev, faqs: copy };
+    });
+  };
+
+  const deleteFaq = (id: string) => {
+    setContent((prev) => ({ ...prev, faqs: prev.faqs.filter((f) => f.id !== id) }));
+  };
+
+  const toggleFaq = (id: string) => {
+    setContent((prev) => ({
+      ...prev,
+      faqs: prev.faqs.map((f) => (f.id === id ? { ...f, visible: !f.visible } : f)),
+    }));
+  };
+
+  // Banner Handlers
+  const saveBanner = () => {
+    if (!bannerEdit) return;
+    setContent((prev) => {
+      const exists = prev.banners.some((b) => b.id === bannerEdit.id);
+      const next = exists
+        ? prev.banners.map((b) => (b.id === bannerEdit.id ? bannerEdit : b))
+        : [bannerEdit, ...prev.banners];
+      return { ...prev, banners: next };
+    });
+    setBannerEdit(null);
+    enqueueSnackbar('Banner saved', { variant: 'success' });
+  };
+
+  const deleteBanner = (id: string) => {
+    setContent((prev) => ({ ...prev, banners: prev.banners.filter((b) => b.id !== id) }));
+  };
+
+  const toggleBanner = (id: string) => {
+    setContent((prev) => ({
+      ...prev,
+      banners: prev.banners.map((b) => (b.id === id ? { ...b, active: !b.active } : b)),
+    }));
   };
 
   // Filtered tickets
   const filteredTickets = useMemo(() => {
-    const q = ticketSearch.trim().toLowerCase();
     return tickets.filter((t) => {
-      if (ticketStatusFilter !== 'ALL' && (t.status || 'OPEN').toUpperCase() !== ticketStatusFilter) return false;
-      if (ticketCategoryFilter !== 'ALL' && (t.category || 'GENERAL').toUpperCase() !== ticketCategoryFilter) return false;
-      if (!q) return true;
-      return [t.ticketNumber, t.name, t.email, t.phone, t.title, t.description, t.category, t.bookingId]
-        .some((v) => (v || '').toLowerCase().includes(q));
+      const matchStatus = ticketStatusFilter === 'ALL' || t.status === ticketStatusFilter;
+      const matchCat = ticketCategoryFilter === 'ALL' || t.category === ticketCategoryFilter;
+      const q = ticketSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        (t.ticketNumber && t.ticketNumber.toLowerCase().includes(q)) ||
+        (t.name && t.name.toLowerCase().includes(q)) ||
+        (t.email && t.email.toLowerCase().includes(q)) ||
+        (t.title && t.title.toLowerCase().includes(q));
+      return matchStatus && matchCat && matchSearch;
     });
-  }, [tickets, ticketSearch, ticketStatusFilter, ticketCategoryFilter]);
+  }, [tickets, ticketStatusFilter, ticketCategoryFilter, ticketSearch]);
 
-  // Ticket stats
-  const totalTickets = tickets.length;
-  const openCount = tickets.filter((t) => (t.status || 'OPEN').toUpperCase() === 'OPEN').length;
-  const inProgressCount = tickets.filter((t) => (t.status || '').toUpperCase() === 'IN_PROGRESS').length;
-  const resolvedCount = tickets.filter((t) => ['RESOLVED', 'CLOSED'].includes((t.status || '').toUpperCase())).length;
-
-  // Filtered FAQs
-  const filteredFaqs = useMemo(() => {
-    const q = faqSearch.trim().toLowerCase();
-    return faqs.filter((f) => {
-      if (faqCategoryFilter !== 'ALL' && f.category.toLowerCase() !== faqCategoryFilter.toLowerCase()) return false;
-      if (!q) return true;
-      return (f.question || '').toLowerCase().includes(q) || (f.answer || '').toLowerCase().includes(q);
-    });
-  }, [faqs, faqSearch, faqCategoryFilter]);
-
-  // Unique FAQ categories
-  const faqCategories = useMemo(() => {
-    const set = new Set<string>();
-    faqs.forEach((f) => f.category && set.add(f.category));
-    return Array.from(set);
-  }, [faqs]);
-
-  // DataGrid Columns for Support Tickets
-  const ticketColumns: GridColDef<SupportTicketRecord>[] = [
+  // Support Tickets Columns
+  const ticketCols: GridColDef[] = [
     {
       field: 'ticketNumber',
       headerName: 'Ticket #',
-      width: 140,
+      width: 130,
       renderCell: (params) => (
-        <Chip
-          label={params.value || `BLZ-${params.row.id?.substring(0, 6)}`}
-          size="small"
-          sx={{ fontWeight: 800, bgcolor: 'rgba(99,102,241,0.1)', color: '#6366F1' }}
-        />
+        <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: 'primary.main' }}>
+          {params.value || `#${params.row.id?.slice(-6)}`}
+        </Typography>
       ),
     },
     {
       field: 'name',
-      headerName: 'Traveler',
-      width: 220,
+      headerName: 'Requester',
+      width: 180,
       renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            {params.value || 'Traveler'}
-          </Typography>
+        <Stack spacing={0.2} sx={{ py: 1 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: '0.85rem' }}>{params.value || 'Anonymous'}</Typography>
           <Typography variant="caption" color="text.secondary">
             {params.row.email || '—'}
           </Typography>
-        </Box>
+        </Stack>
       ),
     },
     {
       field: 'category',
       headerName: 'Category',
-      width: 150,
-      renderCell: (params) => {
-        const cat = (params.value || 'GENERAL').toUpperCase();
-        let color = '#64748B';
-        if (cat.includes('FLIGHT')) color = '#2563EB';
-        else if (cat.includes('EMERGENCY')) color = '#EF4444';
-        else if (cat.includes('BILLING') || cat.includes('PAYMENT')) color = '#10B981';
-        return (
-          <Chip
-            label={cat}
-            size="small"
-            sx={{ fontWeight: 700, bgcolor: `${color}15`, color, border: `1px solid ${color}40` }}
-          />
-        );
-      },
+      width: 130,
+      renderCell: (params) => (
+        <Chip
+          label={params.value || 'General'}
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 600, fontSize: '0.72rem' }}
+        />
+      ),
     },
     {
       field: 'title',
-      headerName: 'Subject & Inquiry',
+      headerName: 'Subject',
       flex: 1,
-      minWidth: 280,
+      minWidth: 220,
       renderCell: (params) => (
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-            {params.value || 'Support Inquiry'}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block', maxWidth: 400 }}>
-            {params.row.description || 'No description'}
-          </Typography>
-        </Box>
+        <Typography sx={{ fontSize: '0.85rem', fontWeight: 500 }} noWrap>
+          {params.value || params.row.description || '—'}
+        </Typography>
       ),
     },
     {
@@ -308,472 +473,605 @@ export const CmsPage: React.FC = () => {
       headerName: 'Status',
       width: 140,
       renderCell: (params) => {
-        const s = (params.value || 'OPEN').toUpperCase();
-        if (s === 'OPEN') {
-          return <Chip icon={<HourglassTopIcon />} label="OPEN" size="small" color="warning" sx={{ fontWeight: 700 }} />;
-        }
-        if (s === 'IN_PROGRESS') {
-          return <Chip icon={<HourglassTopIcon />} label="IN PROGRESS" size="small" color="info" sx={{ fontWeight: 700 }} />;
-        }
-        if (s === 'RESOLVED') {
-          return <Chip icon={<CheckCircleIcon />} label="RESOLVED" size="small" color="success" sx={{ fontWeight: 700 }} />;
-        }
-        return <Chip label={s} size="small" sx={{ fontWeight: 700 }} />;
+        const val = (params.value || 'OPEN').toUpperCase();
+        const colorMap: Record<string, 'warning' | 'info' | 'success' | 'default'> = {
+          OPEN: 'warning',
+          IN_PROGRESS: 'info',
+          RESOLVED: 'success',
+          CLOSED: 'default',
+        };
+        const iconMap: Record<string, React.ReactElement> = {
+          OPEN: <HourglassTopIcon sx={{ fontSize: 14 }} />,
+          IN_PROGRESS: <HourglassTopIcon sx={{ fontSize: 14 }} />,
+          RESOLVED: <CheckCircleIcon sx={{ fontSize: 14 }} />,
+          CLOSED: <CancelIcon sx={{ fontSize: 14 }} />,
+        };
+        return (
+          <Chip
+            size="small"
+            color={colorMap[val] || 'default'}
+            icon={iconMap[val]}
+            label={val}
+            sx={{ fontWeight: 700, fontSize: '0.72rem' }}
+          />
+        );
       },
     },
     {
       field: 'createdAt',
       headerName: 'Created',
-      width: 150,
-      renderCell: (params) => (
-        <Typography variant="caption" color="text.secondary">
-          {params.value ? new Date(params.value).toLocaleString() : '—'}
-        </Typography>
-      ),
+      width: 130,
+      valueFormatter: (value) => (value ? new Date(value).toLocaleDateString() : '—'),
     },
     {
       field: 'actions',
-      headerName: 'Actions',
+      headerName: 'Action',
       width: 120,
       sortable: false,
       renderCell: (params) => (
-        <Stack direction="row" spacing={0.5}>
-          <Tooltip title="View & Update Ticket">
-            <IconButton
-              size="small"
-              color="primary"
-              onClick={() => {
-                setSelectedTicket(params.row);
-                setUpdateStatusVal(params.row.status || 'OPEN');
-                setAdminNoteVal(params.row.adminNote || '');
-              }}
-            >
-              <VisibilityIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Ticket">
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => handleDeleteTicket(params.row.id)}
-            >
-              <DeleteOutlineIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Stack>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<VisibilityIcon sx={{ fontSize: 15 }} />}
+          onClick={() => {
+            setSelectedTicket(params.row);
+            setUpdateStatusVal(params.row.status || 'OPEN');
+            setAdminNoteVal(params.row.adminNote || '');
+          }}
+          sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '8px', fontSize: '0.75rem' }}
+        >
+          View
+        </Button>
       ),
     },
   ];
 
   return (
-    <Box>
+    <Box sx={{ animation: `${fadeUp} .35s ease-out` }}>
       <PageHeader
-        title="CMS & Customer Support Center"
-        subtitle="Manage traveler support tickets, FAQ knowledgebase, and official legal platform policies."
-        breadcrumbs={[{ label: 'Content' }, { label: 'CMS & Support' }]}
+        title="CMS & Support Management"
+        subtitle="Manage traveler support tickets, knowledgebase FAQs, policy pages, and live promo hero banners."
+        breadcrumbs={[{ label: 'Dashboard', path: '/' }, { label: 'CMS & Support' }]}
+        action={
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            {remoteSynced === false && (
+              <Chip
+                icon={<CloudOffIcon sx={{ fontSize: 16 }} />}
+                label="Drafts kept locally"
+                size="small"
+                variant="outlined"
+                color="warning"
+                sx={{ fontWeight: 700 }}
+              />
+            )}
+            <Button
+              variant="contained"
+              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <PublishIcon />}
+              onClick={publishRemote}
+              disabled={saving}
+              sx={{ fontWeight: 800, textTransform: 'none', borderRadius: '10px' }}
+            >
+              {saving ? 'Publishing...' : 'Publish Content'}
+            </Button>
+          </Stack>
+        }
       />
 
-      {/* Tabs */}
-      <GlassCard sx={{ p: 1, mb: 3 }}>
+      {/* Tabs navigation */}
+      <GlassCard sx={{ mb: 3 }}>
         <Tabs
           value={activeTab}
           onChange={(_, val) => setActiveTab(val)}
-          textColor="primary"
-          indicatorColor="primary"
-          variant="scrollable"
-          scrollButtons="auto"
+          sx={{
+            px: 2,
+            '& .MuiTab-root': {
+              textTransform: 'none',
+              fontWeight: 700,
+              minHeight: 56,
+              fontSize: '0.9rem',
+            },
+          }}
         >
           <Tab
-            icon={<SupportAgentIcon />}
+            icon={<SupportAgentIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label={`Customer Support Tickets (${openCount} Open)`}
-            sx={{ fontWeight: 700, textTransform: 'none' }}
+            label={
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>Support Tickets</span>
+                <Chip
+                  label={tickets.filter((t) => t.status === 'OPEN').length}
+                  size="small"
+                  color="warning"
+                  sx={{ height: 20, fontSize: '0.7rem', fontWeight: 800 }}
+                />
+              </Stack>
+            }
           />
           <Tab
-            icon={<HelpOutlineIcon />}
+            icon={<ArticleOutlinedIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label={`Platform FAQs (${faqs.length})`}
-            sx={{ fontWeight: 700, textTransform: 'none' }}
+            label={`Site Pages (${content.pages.length})`}
           />
           <Tab
-            icon={<DescriptionIcon />}
+            icon={<HelpOutlineIcon sx={{ fontSize: 20 }} />}
             iconPosition="start"
-            label="Legal & Platform Documents"
-            sx={{ fontWeight: 700, textTransform: 'none' }}
+            label={`FAQs (${content.faqs.length})`}
+          />
+          <Tab
+            icon={<ViewCarouselOutlinedIcon sx={{ fontSize: 20 }} />}
+            iconPosition="start"
+            label={`Promo Banners (${content.banners.length})`}
           />
         </Tabs>
       </GlassCard>
 
-      {/* TAB 0: SUPPORT TICKETS */}
+      {/* ----------------------------------------------------------------- */}
+      {/* TAB 0: Support Tickets                                            */}
+      {/* ----------------------------------------------------------------- */}
       {activeTab === 0 && (
-        <Box sx={{ animation: `${fadeUp} .4s ease-out` }}>
-          {/* KPI Stat Cards */}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
-            <GlassCard sx={{ p: 2, flex: 1, borderLeft: '4px solid #6366F1' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                TOTAL TICKETS
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#6366F1' }}>
-                {totalTickets}
-              </Typography>
-            </GlassCard>
-            <GlassCard sx={{ p: 2, flex: 1, borderLeft: '4px solid #F59E0B' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                OPEN INQUIRIES
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#F59E0B' }}>
-                {openCount}
-              </Typography>
-            </GlassCard>
-            <GlassCard sx={{ p: 2, flex: 1, borderLeft: '4px solid #0EA5E9' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                IN PROGRESS
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#0EA5E9' }}>
-                {inProgressCount}
-              </Typography>
-            </GlassCard>
-            <GlassCard sx={{ p: 2, flex: 1, borderLeft: '4px solid #10B981' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                RESOLVED / CLOSED
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5, color: '#10B981' }}>
-                {resolvedCount}
-              </Typography>
-            </GlassCard>
-          </Stack>
+        <GlassCard sx={{ p: 3 }}>
+          {/* Filter Bar */}
+          <Stack
+            direction={{ xs: 'column', md: 'row' }}
+            spacing={2}
+            justifyContent="space-between"
+            alignItems={{ xs: 'stretch', md: 'center' }}
+            sx={{ mb: 3 }}
+          >
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} flex={1}>
+              <TextField
+                size="small"
+                placeholder="Search ticket #, user name, subject..."
+                value={ticketSearch}
+                onChange={(e) => setTicketSearch(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 260 }}
+              />
 
-          {/* Tickets DataGrid Container */}
-          <GlassCard sx={{ p: 2.5 }}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', md: 'center' }}
-              spacing={2}
-              sx={{ mb: 2.5 }}
-            >
-              <Stack direction="row" spacing={1.5} alignItems="center">
-                <TextField
-                  size="small"
-                  placeholder="Search ticket #, traveler, subject, booking..."
-                  value={ticketSearch}
-                  onChange={(e) => setTicketSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 320 } }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <FormControl size="small" sx={{ minWidth: 140 }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={ticketStatusFilter}
-                    label="Status"
-                    onChange={(e) => setTicketStatusFilter(e.target.value)}
-                  >
-                    <MenuItem value="ALL">All Statuses</MenuItem>
-                    <MenuItem value="OPEN">Open</MenuItem>
-                    <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
-                    <MenuItem value="RESOLVED">Resolved</MenuItem>
-                    <MenuItem value="CLOSED">Closed</MenuItem>
-                  </Select>
-                </FormControl>
-                <FormControl size="small" sx={{ minWidth: 140 }}>
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    value={ticketCategoryFilter}
-                    label="Category"
-                    onChange={(e) => setTicketCategoryFilter(e.target.value)}
-                  >
-                    <MenuItem value="ALL">All Categories</MenuItem>
-                    <MenuItem value="FLIGHTS">Flights</MenuItem>
-                    <MenuItem value="EMERGENCY">Emergency</MenuItem>
-                    <MenuItem value="BILLING">Billing</MenuItem>
-                    <MenuItem value="GENERAL">General</MenuItem>
-                  </Select>
-                </FormControl>
-              </Stack>
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={ticketStatusFilter}
+                  label="Status"
+                  onChange={(e) => setTicketStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="ALL">All Statuses</MenuItem>
+                  <MenuItem value="OPEN">Open</MenuItem>
+                  <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
+                  <MenuItem value="RESOLVED">Resolved</MenuItem>
+                  <MenuItem value="CLOSED">Closed</MenuItem>
+                </Select>
+              </FormControl>
 
-              <Button
-                variant="outlined"
-                startIcon={<RefreshIcon />}
-                onClick={fetchTickets}
-                disabled={ticketLoading}
-                sx={{ textTransform: 'none', fontWeight: 700 }}
-              >
-                Refresh
-              </Button>
+              <FormControl size="small" sx={{ minWidth: 150 }}>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={ticketCategoryFilter}
+                  label="Category"
+                  onChange={(e) => setTicketCategoryFilter(e.target.value)}
+                >
+                  <MenuItem value="ALL">All Categories</MenuItem>
+                  <MenuItem value="Flights">Flights</MenuItem>
+                  <MenuItem value="Hotels">Hotels</MenuItem>
+                  <MenuItem value="Itinerary">Itinerary</MenuItem>
+                  <MenuItem value="Payments">Payments</MenuItem>
+                  <MenuItem value="Cancellation">Cancellation</MenuItem>
+                  <MenuItem value="Account">Account</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </Select>
+              </FormControl>
             </Stack>
 
-            {!ticketLoading && filteredTickets.length === 0 ? (
-              <EmptyState
-                title={tickets.length === 0 ? 'No Support Tickets Found' : 'No tickets match your filters'}
-                description={
-                  tickets.length === 0
-                    ? 'When travelers submit inquiries via the mobile application or web portal, their tickets will appear here.'
-                    : 'Try clearing your search query or status filter.'
-                }
-              />
-            ) : (
-              <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                <DataGrid
-                  rows={filteredTickets}
-                  columns={ticketColumns}
-                  loading={ticketLoading}
-                  autoHeight
-                  disableRowSelectionOnClick
-                  pageSizeOptions={[10, 25, 50]}
-                  initialState={{
-                    pagination: { paginationModel: { pageSize: 10 } },
-                    sorting: { sortModel: [{ field: 'createdAt', sort: 'desc' }] },
-                  }}
-                  sx={{
-                    border: 0,
-                    minWidth: 1000,
-                    '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 800 },
-                    '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
-                  }}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={fetchTickets}
+              disabled={ticketLoading}
+              sx={{ textTransform: 'none', fontWeight: 700 }}
+            >
+              Refresh Tickets
+            </Button>
+          </Stack>
+
+          {/* Tickets DataGrid */}
+          <Box sx={{ height: 500, width: '100%' }}>
+            <DataGrid
+              rows={filteredTickets}
+              columns={ticketCols}
+              loading={ticketLoading}
+              getRowId={(row) => row.id || row.ticketNumber || String(Math.random())}
+              pageSizeOptions={[10, 25, 50]}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 10 } },
+              }}
+              disableRowSelectionOnClick
+              sx={{
+                border: 'none',
+                '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
+              }}
+            />
+          </Box>
+        </GlassCard>
+      )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* TAB 1: Site Pages                                                 */}
+      {/* ----------------------------------------------------------------- */}
+      {activeTab === 1 && (
+        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '280px 1fr' } }}>
+          {/* Page list column */}
+          <GlassCard sx={{ p: 2 }}>
+            <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: 0.8 }}>
+              Standard Legal Pages
+            </Typography>
+            <Stack spacing={1} sx={{ mt: 1.5 }}>
+              {content.pages.map((p) => {
+                const isSelected = p.id === activePageId;
+                return (
+                  <Box
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActivePageId(p.id)}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      border: '1px solid',
+                      borderColor: isSelected ? 'primary.main' : 'divider',
+                      bgcolor: isSelected ? 'primary.main' : 'transparent',
+                      color: isSelected ? '#fff' : 'text.primary',
+                      transition: 'all .15s ease',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                      },
+                    }}
+                  >
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.88rem' }}>{p.title}</Typography>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                      <Chip
+                        label={p.status}
+                        size="small"
+                        sx={{
+                          height: 18,
+                          fontSize: '0.65rem',
+                          fontWeight: 800,
+                          bgcolor: isSelected ? 'rgba(255,255,255,0.2)' : undefined,
+                          color: isSelected ? '#fff' : undefined,
+                        }}
+                      />
+                      <Typography sx={{ fontSize: '0.72rem', opacity: isSelected ? 0.9 : 0.6 }}>
+                        {fmt(p.updatedAt)}
+                      </Typography>
+                    </Stack>
+                  </Box>
+                );
+              })}
+            </Stack>
+          </GlassCard>
+
+          {/* Active page editor */}
+          <GlassCard sx={{ p: 3 }}>
+            {activePage && (
+              <Stack spacing={2.5}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Box>
+                    <Typography sx={{ fontWeight: 800, fontSize: '1.25rem' }}>{activePage.title}</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Last saved: {fmt(activePage.updatedAt)}
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                      Status:
+                    </Typography>
+                    <ToggleButtonGroup
+                      size="small"
+                      value={activePage.status}
+                      exclusive
+                      onChange={(_, val) => val && updatePage({ status: val })}
+                    >
+                      <ToggleButton value="DRAFT" sx={{ fontWeight: 700, px: 1.5 }}>
+                        Draft
+                      </ToggleButton>
+                      <ToggleButton value="PUBLISHED" sx={{ fontWeight: 700, px: 1.5 }}>
+                        Published
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Stack>
+                </Stack>
+
+                <TextField
+                  label="Page Title"
+                  value={activePage.title}
+                  onChange={(e) => updatePage({ title: e.target.value })}
+                  fullWidth
+                  size="small"
                 />
-              </Box>
+
+                <TextField
+                  label="Content (Markdown supported)"
+                  value={activePage.body}
+                  onChange={(e) => updatePage({ body: e.target.value })}
+                  multiline
+                  minRows={14}
+                  fullWidth
+                  placeholder="Write terms, privacy policy, or about us content here in Markdown format..."
+                />
+              </Stack>
             )}
           </GlassCard>
         </Box>
       )}
 
-      {/* TAB 1: FAQS MANAGER */}
-      {activeTab === 1 && (
-        <Box sx={{ animation: `${fadeUp} .4s ease-out` }}>
-          <GlassCard sx={{ p: 2.5, mb: 3 }}>
-            <Stack
-              direction={{ xs: 'column', md: 'row' }}
-              justifyContent="space-between"
-              alignItems={{ xs: 'flex-start', md: 'center' }}
-              spacing={2}
-              sx={{ mb: 2.5 }}
-            >
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
-                <TextField
-                  size="small"
-                  placeholder="Search questions or answers..."
-                  value={faqSearch}
-                  onChange={(e) => setFaqSearch(e.target.value)}
-                  sx={{ width: { xs: '100%', sm: 320 } }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <FormControl size="small" sx={{ minWidth: 160 }}>
-                  <InputLabel>Category</InputLabel>
-                  <Select
-                    value={faqCategoryFilter}
-                    label="Category"
-                    onChange={(e) => setFaqCategoryFilter(e.target.value)}
-                  >
-                    <MenuItem value="ALL">All Categories</MenuItem>
-                    {faqCategories.map((c) => (
-                      <MenuItem key={c} value={c}>
-                        {c}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-
-              <Stack direction="row" spacing={1}>
-                <Button
-                  variant="contained"
-                  startIcon={<AddCircleOutlineIcon />}
-                  onClick={() => setAddFaqOpen(true)}
-                  sx={{ textTransform: 'none', fontWeight: 700 }}
+      {/* ----------------------------------------------------------------- */}
+      {/* TAB 2: FAQs                                                       */}
+      {/* ----------------------------------------------------------------- */}
+      {activeTab === 2 && (
+        <GlassCard sx={{ p: 3 }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2}
+            justifyContent="space-between"
+            alignItems={{ xs: 'stretch', sm: 'center' }}
+            sx={{ mb: 3 }}
+          >
+            <Stack direction="row" spacing={1.5} flex={1}>
+              <TextField
+                size="small"
+                placeholder="Search FAQs..."
+                value={faqQuery}
+                onChange={(e) => setFaqQuery(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ maxWidth: 300 }}
+              />
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel>Category</InputLabel>
+                <Select
+                  value={faqCategory}
+                  label="Category"
+                  onChange={(e) => setFaqCategory(e.target.value)}
                 >
-                  Add FAQ
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<RefreshIcon />}
-                  onClick={fetchFaqs}
-                  disabled={faqLoading}
-                  sx={{ textTransform: 'none', fontWeight: 700 }}
-                >
-                  Refresh
-                </Button>
-              </Stack>
+                  <MenuItem value="ALL">All Categories</MenuItem>
+                  {FAQ_CATEGORIES.map((cat) => (
+                    <MenuItem key={cat} value={cat}>
+                      {cat}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Stack>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Showing {filteredFaqs.length} FAQs across {faqCategories.length} categories delivered live to mobile app users.
-            </Typography>
-
-            {filteredFaqs.map((faq, idx) => (
-              <Accordion
-                key={faq.id || idx}
-                sx={{
-                  mb: 1.5,
-                  borderRadius: '12px !important',
-                  overflow: 'hidden',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  '&:before': { display: 'none' },
-                }}
-              >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Stack direction="row" spacing={1.5} alignItems="center">
-                    <Chip
-                      label={faq.category}
-                      size="small"
-                      sx={{ fontWeight: 700, bgcolor: 'rgba(99,102,241,0.1)', color: '#6366F1' }}
-                    />
-                    <Typography sx={{ fontWeight: 700 }}>{faq.question}</Typography>
-                  </Stack>
-                </AccordionSummary>
-                <AccordionDetails sx={{ pt: 0, pb: 2 }}>
-                  <Divider sx={{ mb: 1.5 }} />
-                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
-                    {faq.answer}
-                  </Typography>
-                </AccordionDetails>
-              </Accordion>
-            ))}
-          </GlassCard>
-        </Box>
-      )}
-
-      {/* TAB 2: LEGAL & PLATFORM DOCUMENTS */}
-      {activeTab === 2 && (
-        <Box sx={{ animation: `${fadeUp} .4s ease-out` }}>
-          <Stack spacing={3}>
-            {/* Privacy Policy */}
-            <GlassCard sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {privacyPolicy?.title || 'Bleez Privacy Policy'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Last updated: {privacyPolicy?.last_updated || '2026-11-01'} | Endpoint: <code>/api/public/content/privacy</code>
-                  </Typography>
-                </Box>
-                <Chip label="Live on iOS & Android" color="success" size="small" sx={{ fontWeight: 700 }} />
-              </Stack>
-              <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-                {privacyPolicy?.summary || 'Bleez encrypts traveler telemetry and respects user data privacy.'}
-              </Typography>
-              {privacyPolicy?.data_collected && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                    Data Collected:
-                  </Typography>
-                  {privacyPolicy.data_collected.map((item: string, i: number) => (
-                    <Typography key={i} variant="caption" sx={{ display: 'block', color: 'text.secondary', ml: 2 }}>
-                      • {item}
-                    </Typography>
-                  ))}
-                </Box>
-              )}
-            </GlassCard>
-
-            {/* Terms of Service */}
-            <GlassCard sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {termsContent?.title || 'Bleez Terms & Conditions'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Last updated: {termsContent?.last_updated || '2026-11-01'} | Endpoint: <code>/api/public/content/terms</code>
-                  </Typography>
-                </Box>
-                <Chip label="Live on iOS & Android" color="success" size="small" sx={{ fontWeight: 700 }} />
-              </Stack>
-              <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
-                {termsContent?.summary || 'Terms governing use of AI itineraries, flight booking tariffs, and SOS advisory tools.'}
-              </Typography>
-            </GlassCard>
-
-            {/* About Bleez */}
-            <GlassCard sx={{ p: 3 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                    {aboutContent?.app_name || 'About Bleez Travel AI'} (v{aboutContent?.version || '2.1.0'})
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Company: {aboutContent?.company || 'AI Travel Globe Inc.'} | Support: {aboutContent?.support_email || 'support@aitravelglobe.com'}
-                  </Typography>
-                </Box>
-                <Chip label="Version 2.1.0" color="primary" size="small" sx={{ fontWeight: 700 }} />
-              </Stack>
-              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {aboutContent?.description || 'Autonomous travel companion safeguarding journeys with AI guardians worldwide.'}
-              </Typography>
-            </GlassCard>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() =>
+                setFaqEdit({
+                  id: uid(),
+                  question: '',
+                  answer: '',
+                  category: FAQ_CATEGORIES[0],
+                  visible: true,
+                })
+              }
+              sx={{ fontWeight: 800, textTransform: 'none', borderRadius: '10px' }}
+            >
+              New FAQ
+            </Button>
           </Stack>
-        </Box>
+
+          {filteredFaqs.length === 0 ? (
+            <EmptyState
+              icon={<HelpOutlineIcon sx={{ fontSize: 44, color: 'text.secondary' }} />}
+              title="No FAQs found"
+              description="Create a new FAQ to help travelers find answers quickly."
+            />
+          ) : (
+            <Stack spacing={1.5}>
+              {filteredFaqs.map((faq, idx) => (
+                <Box
+                  key={faq.id}
+                  sx={{
+                    p: 2,
+                    borderRadius: '14px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                  }}
+                >
+                  <Box sx={{ flex: 1 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                      <Chip label={faq.category} size="small" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                      {!faq.visible && (
+                        <Chip label="Hidden" size="small" color="default" sx={{ fontWeight: 700, fontSize: '0.7rem' }} />
+                      )}
+                    </Stack>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.92rem' }}>{faq.question}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.5 }} noWrap>
+                      {faq.answer}
+                    </Typography>
+                  </Box>
+
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Tooltip title="Move Up">
+                      <span>
+                        <IconButton size="small" onClick={() => moveFaq(faq.id, -1)} disabled={idx === 0}>
+                          <ArrowUpwardIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Tooltip title="Move Down">
+                      <span>
+                        <IconButton size="small" onClick={() => moveFaq(faq.id, 1)} disabled={idx === filteredFaqs.length - 1}>
+                          <ArrowDownwardIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                    <Switch checked={faq.visible} onChange={() => toggleFaq(faq.id)} size="small" />
+                    <IconButton size="small" onClick={() => setFaqEdit(faq)}>
+                      <EditOutlinedIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" color="error" onClick={() => deleteFaq(faq.id)}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </GlassCard>
       )}
 
-      {/* Ticket Details & Status Update Dialog */}
+      {/* ----------------------------------------------------------------- */}
+      {/* TAB 3: Promo Banners                                              */}
+      {/* ----------------------------------------------------------------- */}
+      {activeTab === 3 && (
+        <GlassCard sx={{ p: 3 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+            <Box>
+              <Typography sx={{ fontWeight: 800, fontSize: '1.1rem' }}>Promo Hero Banners</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Configure promotional banners with custom gradients and direct call-to-actions.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() =>
+                setBannerEdit({
+                  id: uid(),
+                  title: '',
+                  subtitle: '',
+                  cta: 'Explore Now',
+                  link: '/plan-trip',
+                  color: BANNER_COLORS[0],
+                  active: true,
+                })
+              }
+              sx={{ fontWeight: 800, textTransform: 'none', borderRadius: '10px' }}
+            >
+              New Banner
+            </Button>
+          </Stack>
+
+          {content.banners.length === 0 ? (
+            <EmptyState
+              icon={<CampaignOutlinedIcon sx={{ fontSize: 44, color: 'text.secondary' }} />}
+              title="No promo banners created"
+              description="Add your first promotional banner to display in the website hero section."
+            />
+          ) : (
+            <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+              {content.banners.map((b) => (
+                <Box
+                  key={b.id}
+                  sx={{
+                    p: 2.5,
+                    borderRadius: '18px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                  }}
+                >
+                  <BannerPreview b={b} compact />
+
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Switch checked={b.active} onChange={() => toggleBanner(b.id)} size="small" />
+                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 700 }}>
+                        {b.active ? 'Active' : 'Inactive'}
+                      </Typography>
+                    </Stack>
+
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        size="small"
+                        startIcon={<EditOutlinedIcon />}
+                        onClick={() => setBannerEdit(b)}
+                        sx={{ textTransform: 'none', fontWeight: 700 }}
+                      >
+                        Edit
+                      </Button>
+                      <IconButton size="small" color="error" onClick={() => deleteBanner(b.id)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </Stack>
+                </Box>
+              ))}
+            </Box>
+          )}
+        </GlassCard>
+      )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Dialogs                                                           */}
+      {/* ----------------------------------------------------------------- */}
+
+      {/* Ticket Details & Resolution Dialog */}
       <Dialog
         open={Boolean(selectedTicket)}
         onClose={() => setSelectedTicket(null)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
+        PaperProps={{ sx: { borderRadius: '20px' } }}
       >
-        <DialogTitle sx={{ fontWeight: 800 }}>
-          Support Ticket: {selectedTicket?.ticketNumber || selectedTicket?.id}
+        <DialogTitle sx={{ fontWeight: 800, pb: 1 }}>
+          Ticket #{selectedTicket?.ticketNumber || selectedTicket?.id?.slice(-6)}
         </DialogTitle>
         <DialogContent dividers>
           {selectedTicket && (
             <Stack spacing={2.5}>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    TRAVELER
+                  <Typography variant="caption" color="text.secondary">
+                    Requester
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 700 }}>
-                    {selectedTicket.name || 'Anonymous Traveler'}
-                  </Typography>
+                  <Typography sx={{ fontWeight: 700 }}>{selectedTicket.name || 'Anonymous'}</Typography>
                   <Typography variant="body2" color="text.secondary">
-                    📧 {selectedTicket.email || 'No email'} | 📞 {selectedTicket.phone || 'No phone'}
+                    {selectedTicket.email || '—'}
                   </Typography>
                 </Box>
                 <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    CATEGORY & BOOKING
+                  <Typography variant="caption" color="text.secondary">
+                    Category
                   </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    Category: <Chip label={selectedTicket.category || 'GENERAL'} size="small" />
-                  </Typography>
-                  {selectedTicket.bookingId && (
-                    <Typography variant="body2" color="primary" sx={{ fontWeight: 700, mt: 0.5 }}>
-                      Booking Ref: {selectedTicket.bookingId}
-                    </Typography>
-                  )}
+                  <Typography sx={{ fontWeight: 700 }}>{selectedTicket.category || 'General'}</Typography>
                 </Box>
-              </Stack>
-
-              <Divider />
+              </Box>
 
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 0.5 }}>
-                  Subject: {selectedTicket.title}
+                <Typography variant="caption" color="text.secondary">
+                  Subject
                 </Typography>
-                <Box
-                  sx={{
-                    p: 2,
-                    borderRadius: '8px',
-                    bgcolor: 'action.hover',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                >
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>{selectedTicket.title}</Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Description
+                </Typography>
+                <Box sx={{ p: 2, borderRadius: '12px', bgcolor: 'action.hover', mt: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.88rem', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                     {selectedTicket.description}
                   </Typography>
                 </Box>
@@ -782,44 +1080,38 @@ export const CmsPage: React.FC = () => {
               <Box>
                 <Typography variant="caption" color="text.secondary">
                   Submitted: {selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}
-                  {selectedTicket.resolvedAt && ` | Resolved: ${new Date(selectedTicket.resolvedAt).toLocaleString()}`}
                 </Typography>
               </Box>
 
               <Divider />
 
               {/* Status Update Form */}
-              <Box sx={{ pt: 1 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 1.5 }}>
-                  Update Ticket Status & Admin Resolution
-                </Typography>
-                <Stack spacing={2}>
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Status</InputLabel>
-                    <Select
-                      value={updateStatusVal}
-                      label="Status"
-                      onChange={(e) => setUpdateStatusVal(e.target.value)}
-                    >
-                      <MenuItem value="OPEN">OPEN</MenuItem>
-                      <MenuItem value="IN_PROGRESS">IN PROGRESS</MenuItem>
-                      <MenuItem value="RESOLVED">RESOLVED</MenuItem>
-                      <MenuItem value="CLOSED">CLOSED</MenuItem>
-                    </Select>
-                  </FormControl>
+              <Stack spacing={2}>
+                <FormControl size="small" fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={updateStatusVal}
+                    label="Status"
+                    onChange={(e) => setUpdateStatusVal(e.target.value)}
+                  >
+                    <MenuItem value="OPEN">OPEN</MenuItem>
+                    <MenuItem value="IN_PROGRESS">IN PROGRESS</MenuItem>
+                    <MenuItem value="RESOLVED">RESOLVED</MenuItem>
+                    <MenuItem value="CLOSED">CLOSED</MenuItem>
+                  </Select>
+                </FormControl>
 
-                  <TextField
-                    size="small"
-                    multiline
-                    rows={3}
-                    label="Admin Note / Resolution Notes"
-                    placeholder="Enter notes about how this ticket was resolved..."
-                    value={adminNoteVal}
-                    onChange={(e) => setAdminNoteVal(e.target.value)}
-                    fullWidth
-                  />
-                </Stack>
-              </Box>
+                <TextField
+                  size="small"
+                  multiline
+                  rows={3}
+                  label="Admin Note / Resolution Notes"
+                  placeholder="Enter notes about how this ticket was resolved..."
+                  value={adminNoteVal}
+                  onChange={(e) => setAdminNoteVal(e.target.value)}
+                  fullWidth
+                />
+              </Stack>
             </Stack>
           )}
         </DialogContent>
@@ -840,67 +1132,174 @@ export const CmsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Add FAQ Dialog */}
-      <Dialog open={addFaqOpen} onClose={() => setAddFaqOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>Add Knowledgebase FAQ</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              size="small"
-              label="Category"
-              value={newFaqCategory}
-              onChange={(e) => setNewFaqCategory(e.target.value)}
-              placeholder="e.g. AI Trip Planner, Emergency, Flights"
-              fullWidth
-            />
-            <TextField
-              size="small"
-              label="Question"
-              value={newFaqQuestion}
-              onChange={(e) => setNewFaqQuestion(e.target.value)}
-              placeholder="Enter traveler question..."
-              fullWidth
-            />
-            <TextField
-              size="small"
-              multiline
-              rows={4}
-              label="Answer"
-              value={newFaqAnswer}
-              onChange={(e) => setNewFaqAnswer(e.target.value)}
-              placeholder="Enter comprehensive answer..."
-              fullWidth
-            />
-          </Stack>
+      {/* FAQ Dialog */}
+      <Dialog
+        open={Boolean(faqEdit)}
+        onClose={() => setFaqEdit(null)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px' } }}
+      >
+        <Box sx={{ p: 3, color: '#fff', background: 'linear-gradient(120deg,#4C1D95,#0EA5E9)' }}>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.2rem' }}>
+            {faqEdit && content.faqs.some((f) => f.id === faqEdit.id) ? 'Edit FAQ' : 'New FAQ'}
+          </Typography>
+        </Box>
+        <DialogContent sx={{ pt: 3 }}>
+          {faqEdit && (
+            <Stack spacing={2}>
+              <TextField
+                label="Question"
+                fullWidth
+                value={faqEdit.question}
+                onChange={(e) => setFaqEdit({ ...faqEdit, question: e.target.value })}
+                autoFocus
+              />
+              <TextField
+                label="Answer"
+                fullWidth
+                multiline
+                minRows={4}
+                value={faqEdit.answer}
+                onChange={(e) => setFaqEdit({ ...faqEdit, answer: e.target.value })}
+              />
+              <TextField
+                select
+                label="Category"
+                value={faqEdit.category}
+                onChange={(e) => setFaqEdit({ ...faqEdit, category: e.target.value })}
+              >
+                {FAQ_CATEGORIES.map((c) => (
+                  <MenuItem key={c} value={c}>
+                    {c}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+          )}
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setAddFaqOpen(false)} color="inherit">
-            Cancel
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setFaqEdit(null)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => {
-              if (!newFaqQuestion.trim() || !newFaqAnswer.trim()) {
-                enqueueSnackbar('Please enter both question and answer', { variant: 'warning' });
-                return;
-              }
-              setFaqs((prev) => [
-                {
-                  id: `faq-${Date.now()}`,
-                  category: newFaqCategory.trim() || 'General',
-                  question: newFaqQuestion.trim(),
-                  answer: newFaqAnswer.trim(),
-                },
-                ...prev,
-              ]);
-              enqueueSnackbar('FAQ added to local knowledgebase!', { variant: 'success' });
-              setAddFaqOpen(false);
-              setNewFaqQuestion('');
-              setNewFaqAnswer('');
-            }}
-            sx={{ fontWeight: 700, textTransform: 'none' }}
+            onClick={saveFaq}
+            disabled={!faqEdit?.question.trim() || !faqEdit?.answer.trim()}
+            sx={{ fontWeight: 800 }}
           >
-            Add FAQ
+            Save FAQ
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Banner Dialog */}
+      <Dialog
+        open={Boolean(bannerEdit)}
+        onClose={() => setBannerEdit(null)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: '20px' } }}
+      >
+        <Box sx={{ p: 3, color: '#fff', background: 'linear-gradient(120deg,#4C1D95,#F97316)' }}>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.2rem' }}>
+            {bannerEdit && content.banners.some((b) => b.id === bannerEdit.id) ? 'Edit Banner' : 'New Banner'}
+          </Typography>
+        </Box>
+        <DialogContent sx={{ pt: 3 }}>
+          {bannerEdit && (
+            <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
+              <Stack spacing={2}>
+                <TextField
+                  label="Headline"
+                  fullWidth
+                  value={bannerEdit.title}
+                  onChange={(e) => setBannerEdit({ ...bannerEdit, title: e.target.value })}
+                  autoFocus
+                />
+                <TextField
+                  label="Supporting line"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  value={bannerEdit.subtitle}
+                  onChange={(e) => setBannerEdit({ ...bannerEdit, subtitle: e.target.value })}
+                />
+                <Stack direction="row" spacing={1.5}>
+                  <TextField
+                    label="Button text"
+                    value={bannerEdit.cta}
+                    onChange={(e) => setBannerEdit({ ...bannerEdit, cta: e.target.value })}
+                  />
+                  <TextField
+                    label="Button link"
+                    fullWidth
+                    placeholder="/plan-trip"
+                    value={bannerEdit.link}
+                    onChange={(e) => setBannerEdit({ ...bannerEdit, link: e.target.value })}
+                  />
+                </Stack>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', mb: 0.75 }}>Color</Typography>
+                  <Stack direction="row" spacing={1}>
+                    {BANNER_COLORS.map((c) => (
+                      <Box
+                        key={c}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Color ${c}`}
+                        onClick={() => setBannerEdit({ ...bannerEdit, color: c })}
+                        sx={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: '10px',
+                          bgcolor: c,
+                          cursor: 'pointer',
+                          border: '3px solid',
+                          borderColor: bannerEdit.color === c ? 'text.primary' : 'transparent',
+                          transition: 'transform .15s',
+                          '&:hover': { transform: 'scale(1.1)' },
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+                <Stack direction="row" spacing={1.5}>
+                  <TextField
+                    label="Starts"
+                    type="date"
+                    InputLabelProps={{ shrink: true }}
+                    value={bannerEdit.startsAt || ''}
+                    onChange={(e) => setBannerEdit({ ...bannerEdit, startsAt: e.target.value })}
+                  />
+                  <TextField
+                    label="Ends"
+                    type="date"
+                    InputLabelProps={{ shrink: true }}
+                    value={bannerEdit.endsAt || ''}
+                    onChange={(e) => setBannerEdit({ ...bannerEdit, endsAt: e.target.value })}
+                  />
+                </Stack>
+              </Stack>
+              <Box>
+                <Typography
+                  color="text.secondary"
+                  sx={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', mb: 1 }}
+                >
+                  Live preview
+                </Typography>
+                <BannerPreview b={bannerEdit} />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setBannerEdit(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={saveBanner}
+            disabled={!bannerEdit?.title.trim()}
+            sx={{ fontWeight: 800 }}
+          >
+            Save Banner
           </Button>
         </DialogActions>
       </Dialog>
