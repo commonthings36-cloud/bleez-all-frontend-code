@@ -1,6 +1,7 @@
 import { apiClient } from '@/services/apiClient';
 import {
   Campaign,
+  CampaignMetrics,
   CampaignOpportunity,
   CampaignAnalytics,
   UserSearchResult,
@@ -19,8 +20,24 @@ export const campaignService = {
 
   // Admin Campaign Endpoints
   async getAllCampaigns(): Promise<Campaign[]> {
-    const response = await apiClient.get<Campaign[]>('/admin/campaigns');
-    return response.data;
+    const response = await apiClient.get<any[]>('/admin/campaigns');
+    const data = Array.isArray(response.data) ? response.data : [];
+    return data.map((c: any) => {
+      const rawM = c.metrics || {};
+      const metrics: CampaignMetrics = {
+        targetCount: Number(rawM.targetCount ?? rawM.target_count ?? 0),
+        queuedCount: Number(rawM.queuedCount ?? rawM.queued_count ?? 0),
+        deliveredCount: Number(rawM.deliveredCount ?? rawM.delivered_count ?? rawM.impressionCount ?? rawM.impression_count ?? 0),
+        impressionCount: Number(rawM.impressionCount ?? rawM.impression_count ?? 0),
+        clickCount: Number(rawM.clickCount ?? rawM.click_count ?? 0),
+        conversionCount: Number(rawM.conversionCount ?? rawM.conversion_count ?? 0),
+        attributedRevenue: Number(rawM.attributedRevenue ?? rawM.attributed_revenue ?? 0),
+      };
+      return {
+        ...c,
+        metrics,
+      };
+    });
   },
 
   async searchUsers(query: string = ''): Promise<UserSearchResult[]> {
@@ -36,8 +53,21 @@ export const campaignService = {
   },
 
   async getCampaignById(id: string): Promise<Campaign> {
-    const response = await apiClient.get<Campaign>(`/admin/campaigns/${id}`);
-    return response.data;
+    const response = await apiClient.get<any>(`/admin/campaigns/${id}`);
+    const c = response.data;
+    if (c) {
+      const rawM = c.metrics || {};
+      c.metrics = {
+        targetCount: Number(rawM.targetCount ?? rawM.target_count ?? 0),
+        queuedCount: Number(rawM.queuedCount ?? rawM.queued_count ?? 0),
+        deliveredCount: Number(rawM.deliveredCount ?? rawM.delivered_count ?? rawM.impressionCount ?? rawM.impression_count ?? 0),
+        impressionCount: Number(rawM.impressionCount ?? rawM.impression_count ?? 0),
+        clickCount: Number(rawM.clickCount ?? rawM.click_count ?? 0),
+        conversionCount: Number(rawM.conversionCount ?? rawM.conversion_count ?? 0),
+        attributedRevenue: Number(rawM.attributedRevenue ?? rawM.attributed_revenue ?? 0),
+      };
+    }
+    return c;
   },
 
   async createCampaign(campaign: Partial<Campaign>): Promise<Campaign> {

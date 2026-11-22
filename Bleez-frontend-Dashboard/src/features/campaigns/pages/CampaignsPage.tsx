@@ -874,12 +874,12 @@ export const CampaignsPage: React.FC = () => {
 
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', mt: 1.75, py: 1, borderTop: '1px dashed', borderBottom: '1px dashed', borderColor: 'divider' }}>
                         {[
-                          { k: 'Target', v: m && m.targetCount != null ? Number(m.targetCount).toLocaleString() : '—' },
-                          { k: 'Delivered', v: m && m.deliveredCount != null ? Number(m.deliveredCount).toLocaleString() : '—' },
-                          { k: 'Revenue', v: m && m.attributedRevenue != null ? `$${Number(m.attributedRevenue).toLocaleString()}` : '—' },
+                          { k: 'Target', v: (m?.targetCount ?? (m as any)?.target_count) != null && Number(m?.targetCount ?? (m as any)?.target_count) > 0 ? Number(m?.targetCount ?? (m as any)?.target_count).toLocaleString() : '—' },
+                          { k: 'Delivered', v: Number(m?.deliveredCount ?? (m as any)?.delivered_count ?? m?.impressionCount ?? (m as any)?.impression_count ?? 0).toLocaleString() },
+                          { k: 'Revenue', v: `$${Number(m?.attributedRevenue ?? (m as any)?.attributed_revenue ?? 0).toLocaleString()}` },
                         ].map((x) => (
                           <Box key={x.k} sx={{ textAlign: 'center' }}>
-                            <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: x.v === '—' ? 'text.disabled' : 'text.primary' }}>{x.v}</Typography>
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: x.k === 'Revenue' && x.v !== '$0' ? '#10B981' : (x.v === '—' ? 'text.secondary' : 'text.primary') }}>{x.v}</Typography>
                             <Typography color="text.secondary" sx={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase' }}>{x.k}</Typography>
                           </Box>
                         ))}
