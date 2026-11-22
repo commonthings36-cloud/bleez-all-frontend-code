@@ -21,8 +21,6 @@ import {
   Tab,
   Tabs,
   TextField,
-  ToggleButton,
-  ToggleButtonGroup,
   Tooltip,
   Typography,
   keyframes,
@@ -249,11 +247,11 @@ export const CmsPage: React.FC = () => {
           prev.map((t) =>
             t.id === selectedTicket.id
               ? {
-                  ...t,
-                  status: updateStatusVal,
-                  adminNote: adminNoteVal,
-                  resolvedAt: updateStatusVal === 'RESOLVED' ? new Date().toISOString() : t.resolvedAt,
-                }
+                ...t,
+                status: updateStatusVal,
+                adminNote: adminNoteVal,
+                resolvedAt: updateStatusVal === 'RESOLVED' ? new Date().toISOString() : t.resolvedAt,
+              }
               : t
           )
         );
@@ -778,7 +776,7 @@ export const CmsPage: React.FC = () => {
                       size="small"
                       value={activePage.status}
                       exclusive
-                      onChange={(_: React.MouseEvent<HTMLElement>, val: 'DRAFT' | 'PUBLISHED' | null) => val && updatePage({ status: val })}
+                      onChange={(_, val) => val && updatePage({ status: val })}
                     >
                       <ToggleButton value="DRAFT" sx={{ fontWeight: 700, px: 1.5 }}>
                         Draft
