@@ -11,6 +11,7 @@ import {
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CampaignIcon from '@mui/icons-material/Campaign';
 
 import { PageHeader } from '@/components/PageHeader';
 import { GlassCard } from '@/components/GlassCard';
@@ -26,8 +27,9 @@ export const NotificationsPage: React.FC = () => {
     Promise.allSettled([
       apiClient.get('/emergency/panic-events'),
       apiClient.get('/alerts/all'),
+      apiClient.get('/admin/campaigns'),
     ])
-      .then(([panicRes, alertsRes]) => {
+      .then(([panicRes, alertsRes, campaignsRes]) => {
         const panicItems =
           panicRes.status === 'fulfilled' && Array.isArray(panicRes.value.data)
             ? panicRes.value.data.map((ev: any) => ({
@@ -65,7 +67,31 @@ export const NotificationsPage: React.FC = () => {
             }))
             : [];
 
-        setDispatches([...panicItems, ...alertItems]);
+        const campaignItems =
+          campaignsRes.status === 'fulfilled' && Array.isArray(campaignsRes.value.data)
+            ? campaignsRes.value.data.map((c: any) => ({
+              id: c.id,
+              title: `Campaign Announcement — ${c.name || 'Untitled Campaign'}`,
+              subtitle: `Audience: ${c.audienceScope || 'ALL_USERS'} · Status: ${c.status || 'DRAFT'}`,
+              message:
+                c.objective ||
+                (c.messageTemplate ? `"${c.messageTemplate}"` : `Priority ${c.priority ?? 8}/10 campaign scheduled for traveler engagement.`),
+              recipientsCount: c.metrics?.deliveredCount ?? c.metrics?.delivered_count ?? c.targetEstimate ?? 0,
+              contacts: [],
+              location: c.targetCountries?.length ? c.targetCountries.join(', ') : 'Global',
+              createdAt: c.createdAt || c.updatedAt,
+              category: 'CAMPAIGN',
+              status: c.status,
+            }))
+            : [];
+
+        const combined = [...panicItems, ...campaignItems, ...alertItems].sort((a, b) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        setDispatches(combined);
       })
       .finally(() => setLoading(false));
   };
@@ -126,18 +152,39 @@ export const NotificationsPage: React.FC = () => {
                 key={item.id}
                 sx={{
                   p: 2.5,
-                  borderColor: item.category === 'SMTP_SOS' ? 'error.main' : 'divider',
+                  borderColor:
+                    item.category === 'SMTP_SOS'
+                      ? 'error.main'
+                      : item.category === 'CAMPAIGN'
+                      ? 'primary.main'
+                      : 'divider',
                 }}
               >
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                   <Stack direction="row" spacing={2} alignItems="flex-start">
                     <Avatar
                       sx={{
-                        bgcolor: item.category === 'SMTP_SOS' ? 'rgba(239,68,68,0.15)' : 'rgba(99,102,241,0.15)',
-                        color: item.category === 'SMTP_SOS' ? '#EF4444' : '#6366F1',
+                        bgcolor:
+                          item.category === 'SMTP_SOS'
+                            ? 'rgba(239,68,68,0.15)'
+                            : item.category === 'CAMPAIGN'
+                            ? 'rgba(124,58,237,0.15)'
+                            : 'rgba(99,102,241,0.15)',
+                        color:
+                          item.category === 'SMTP_SOS'
+                            ? '#EF4444'
+                            : item.category === 'CAMPAIGN'
+                            ? '#7C3AED'
+                            : '#6366F1',
                       }}
                     >
-                      {item.category === 'SMTP_SOS' ? <MarkEmailReadIcon /> : <WarningAmberIcon />}
+                      {item.category === 'SMTP_SOS' ? (
+                        <MarkEmailReadIcon />
+                      ) : item.category === 'CAMPAIGN' ? (
+                        <CampaignIcon />
+                      ) : (
+                        <WarningAmberIcon />
+                      )}
                     </Avatar>
                     <Box>
                       <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
@@ -145,7 +192,7 @@ export const NotificationsPage: React.FC = () => {
                       </Typography>
                       {item.subtitle && (
                         <Typography variant="caption" color="text.secondary" display="block">
-                          Sender: {item.subtitle}
+                          {item.subtitle}
                         </Typography>
                       )}
                       <Typography variant="body2" sx={{ mt: 0.5 }}>
@@ -156,9 +203,14 @@ export const NotificationsPage: React.FC = () => {
                           Recipients: {item.contacts.map((c: any) => `${c.name || 'Contact'} (${c.email || c.phone || ''})`).join(', ')}
                         </Typography>
                       )}
+                      {item.location && (
+                        <Typography variant="caption" color="primary" display="block" sx={{ mt: 0.5, fontWeight: 600 }}>
+                          Target Area: {item.location}
+                        </Typography>
+                      )}
                       {item.createdAt && (
                         <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-                          Dispatched at: {new Date(item.createdAt).toLocaleString()}
+                          Logged at: {new Date(item.createdAt).toLocaleString()}
                         </Typography>
                       )}
                     </Box>
@@ -167,9 +219,17 @@ export const NotificationsPage: React.FC = () => {
                     label={
                       item.category === 'SMTP_SOS'
                         ? `${item.recipientsCount} Email(s) Delivered`
+                        : item.category === 'CAMPAIGN'
+                        ? `CAMPAIGN · ${item.status || 'ACTIVE'}`
                         : 'SYSTEM ALERT'
                     }
-                    color={item.category === 'SMTP_SOS' ? 'success' : 'warning'}
+                    color={
+                      item.category === 'SMTP_SOS'
+                        ? 'error'
+                        : item.category === 'CAMPAIGN'
+                        ? 'primary'
+                        : 'warning'
+                    }
                     size="small"
                     sx={{ fontWeight: 700, flexShrink: 0 }}
                   />

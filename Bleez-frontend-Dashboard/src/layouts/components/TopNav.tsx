@@ -17,6 +17,7 @@ import {
   ListItemAvatar,
   ListItemText,
   useTheme,
+  Chip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
@@ -26,6 +27,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CampaignIcon from '@mui/icons-material/Campaign';
 
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { toggleThemeMode } from '@/store/slices/themeSlice';
@@ -81,7 +83,8 @@ export const TopNav: React.FC = () => {
     Promise.allSettled([
       apiClient.get('/emergency/panic-events'),
       apiClient.get('/alerts/all'),
-    ]).then(([panicRes, alertsRes]) => {
+      apiClient.get('/admin/campaigns'),
+    ]).then(([panicRes, alertsRes, campaignsRes]) => {
       const panicNotifications =
         panicRes.status === 'fulfilled' && Array.isArray(panicRes.value.data)
           ? panicRes.value.data.map((ev: any) => ({
@@ -91,17 +94,42 @@ export const TopNav: React.FC = () => {
               country: ev.locationLabel || (ev.latitude != null && ev.longitude != null ? `${ev.latitude}, ${ev.longitude}` : undefined),
               severity: 'HIGH',
               type: 'emergency',
+              createdAt: ev.createdAt,
             }))
           : [];
 
       const advisoryNotifications =
         alertsRes.status === 'fulfilled'
-          ? Array.isArray(alertsRes.value.data)
-            ? alertsRes.value.data
-            : alertsRes.value.data?.alerts || []
+          ? (Array.isArray(alertsRes.value.data)
+              ? alertsRes.value.data
+              : alertsRes.value.data?.alerts || []
+            ).map((a: any) => ({
+              ...a,
+              type: 'advisory',
+              severity: a.severity || 'MEDIUM',
+            }))
           : [];
 
-      const combined = [...panicNotifications, ...advisoryNotifications];
+      const campaignNotifications =
+        campaignsRes.status === 'fulfilled' && Array.isArray(campaignsRes.value.data)
+          ? campaignsRes.value.data.map((c: any) => ({
+              id: c.id,
+              title: `Campaign: ${c.name || 'Untitled Campaign'}`,
+              description: `Status: ${c.status || 'DRAFT'} · ${c.audienceScope || 'ALL_USERS'} · Priority ${c.priority ?? 8}/10`,
+              country: c.targetCountries?.length ? c.targetCountries.join(', ') : undefined,
+              severity: c.status === 'ACTIVE' ? 'INFO' : 'LOW',
+              type: 'campaign',
+              createdAt: c.createdAt || c.updatedAt,
+              path: '/campaigns',
+            }))
+          : [];
+
+      const combined = [...panicNotifications, ...campaignNotifications, ...advisoryNotifications].sort((a, b) => {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
+
       setNotifications(combined);
       dispatch(setNotificationsCount(combined.length));
     });
@@ -181,25 +209,57 @@ export const TopNav: React.FC = () => {
                   />
                 </ListItem>
               ) : (
-                notifications.slice(0, 5).map((n, idx) => (
+                notifications.slice(0, 6).map((n, idx) => (
                   <React.Fragment key={n.id || idx}>
-                    <ListItem alignItems="flex-start" sx={{ py: 1.5 }}>
+                    <ListItem
+                      alignItems="flex-start"
+                      sx={{
+                        py: 1.5,
+                        cursor: n.path ? 'pointer' : 'default',
+                        '&:hover': n.path ? { bgcolor: 'action.hover' } : {},
+                      }}
+                      onClick={() => {
+                        if (n.path) {
+                          handleCloseNotif();
+                          navigate(n.path);
+                        }
+                      }}
+                    >
                       <ListItemAvatar>
                         <Avatar
                           sx={{
-                            bgcolor: n.severity === 'HIGH' || n.type === 'emergency' ? 'error.main' : 'warning.main',
+                            bgcolor:
+                              n.type === 'campaign'
+                                ? 'primary.main'
+                                : n.severity === 'HIGH' || n.type === 'emergency'
+                                ? 'error.main'
+                                : 'warning.main',
                             width: 36,
                             height: 36,
                           }}
                         >
-                          <WarningAmberIcon fontSize="small" />
+                          {n.type === 'campaign' ? (
+                            <CampaignIcon fontSize="small" />
+                          ) : (
+                            <WarningAmberIcon fontSize="small" />
+                          )}
                         </Avatar>
                       </ListItemAvatar>
                       <ListItemText
                         primary={
-                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                            {n.title || n.type || 'System Alert'}
-                          </Typography>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                              {n.title || n.type || 'System Alert'}
+                            </Typography>
+                            {n.type === 'campaign' && (
+                              <Chip
+                                label="Campaign"
+                                size="small"
+                                color="primary"
+                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
+                              />
+                            )}
+                          </Stack>
                         }
                         secondary={
                           <Typography variant="caption" color="text.secondary" display="block">
@@ -218,6 +278,30 @@ export const TopNav: React.FC = () => {
                 ))
               )}
             </List>
+            <Box
+              sx={{
+                p: 1.5,
+                borderTop: `1px solid ${theme.palette.divider}`,
+                textAlign: 'center',
+                bgcolor: 'background.paper',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  fontWeight: 700,
+                  color: 'primary.main',
+                  cursor: 'pointer',
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+                onClick={() => {
+                  handleCloseNotif();
+                  navigate('/notifications');
+                }}
+              >
+                View All Notifications & Campaigns →
+              </Typography>
+            </Box>
           </Popover>
 
           <Divider orientation="vertical" flexItem sx={{ mx: 1, my: 1.5 }} />
