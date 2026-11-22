@@ -314,8 +314,107 @@ export const UsersPage: React.FC = () => {
       ),
     },
     {
-      field: 'enabled', headerName: 'Account', width: 130,
-      renderCell: (p) => <Chip size="small" label={p.value ? 'Active' : 'Deactivated'} color={p.value ? 'success' : 'error'} variant={p.value ? 'filled' : 'outlined'} sx={{ fontWeight: 700 }} />,
+      field: 'enabled', headerName: 'Account Status', width: 175,
+      renderCell: (p) => {
+        const isProtected = isProtectedAdmin(p.row);
+        return (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
+            <Switch
+              size="small"
+              checked={Boolean(p.value)}
+              disabled={isProtected}
+              color="success"
+              onChange={() => setStatusDialogUser(p.row)}
+              inputProps={{ 'aria-label': `Account status toggle for ${p.row.name}` }}
+            />
+            <Chip
+              size="small"
+              label={p.value ? 'Active' : 'Deactivated'}
+              color={p.value ? 'success' : 'error'}
+              variant={p.value ? 'filled' : 'outlined'}
+              sx={{ fontWeight: 800, cursor: isProtected ? 'default' : 'pointer' }}
+              onClick={() => {
+                if (!isProtected) setStatusDialogUser(p.row);
+              }}
+            />
+          </Stack>
+        );
+      },
+    },
+    {
+      field: 'actions', headerName: 'Actions', width: 210, sortable: false, filterable: false, align: 'center', headerAlign: 'center',
+      renderCell: (p) => {
+        const isProtected = isProtectedAdmin(p.row);
+        return (
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Tooltip title={isProtected ? 'Protected account' : (p.row.enabled ? 'Deactivate user' : 'Reactivate user')}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={isProtected}
+                  onClick={() => setStatusDialogUser(p.row)}
+                  sx={{
+                    color: p.row.enabled ? 'error.main' : 'success.main',
+                    bgcolor: p.row.enabled ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+                    '&:hover': { bgcolor: p.row.enabled ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)' },
+                  }}
+                >
+                  {p.row.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title={isProtected ? 'Protected account' : 'Delete user permanently'}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={isProtected}
+                  onClick={() => setDeleteDialogUser(p.row)}
+                  sx={{
+                    color: '#EF4444',
+                    bgcolor: 'rgba(239,68,68,0.1)',
+                    '&:hover': { bgcolor: 'rgba(239,68,68,0.25)' },
+                  }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Clear user history (trips, bookings, media, activity)">
+              <IconButton
+                size="small"
+                sx={{
+                  color: 'warning.main',
+                  bgcolor: 'rgba(245,158,11,0.1)',
+                  '&:hover': { bgcolor: 'rgba(245,158,11,0.2)' },
+                }}
+                onClick={() => {
+                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
+                  setClearHistoryUser(p.row);
+                }}
+              >
+                <HistoryToggleOffIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Grant Offer / Extra Perks">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
+                sx={{ '&:hover': { bgcolor: 'primary.50' } }}
+              >
+                <CardGiftcardIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
+              <span>
+                <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
+                  <MyLocationIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+        );
+      },
     },
     {
       field: 'online', headerName: 'Presence', width: 130,
@@ -338,78 +437,6 @@ export const UsersPage: React.FC = () => {
     { field: 'lastSeen', headerName: 'Last seen', width: 130, valueGetter: (_v, r) => (r.online ? 'Now' : timeAgo(r.lastSeen || r.lastLogin)) },
     { field: 'lastLogin', headerName: 'Last login', width: 180, valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '—') },
     { field: 'createdAt', headerName: 'Joined', width: 120, valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : '—') },
-    {
-      field: 'actions', headerName: 'Actions', width: 200, sortable: false, filterable: false, align: 'center',
-      renderCell: (p) => {
-        const isProtected = isProtectedAdmin(p.row);
-        return (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <Tooltip title="Grant Offer / Extra Perks">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
-                sx={{ '&:hover': { bgcolor: 'primary.50' } }}
-              >
-                <CardGiftcardIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
-              <span>
-                <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
-                  <MyLocationIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title={isProtected ? 'Protected account' : (p.row.enabled ? 'Deactivate user' : 'Reactivate user')}>
-              <span>
-                <IconButton
-                  size="small"
-                  disabled={isProtected}
-                  onClick={() => setStatusDialogUser(p.row)}
-                  sx={{
-                    color: p.row.enabled ? 'error.main' : 'success.main',
-                    '&:hover': { bgcolor: p.row.enabled ? 'error.50' : 'success.50' },
-                  }}
-                >
-                  {p.row.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Clear user history (trips, bookings, media, activity)">
-              <IconButton
-                size="small"
-                sx={{
-                  color: 'warning.main',
-                  '&:hover': { bgcolor: 'warning.50' },
-                }}
-                onClick={() => {
-                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
-                  setClearHistoryUser(p.row);
-                }}
-              >
-                <HistoryToggleOffIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={isProtected ? 'Protected account' : 'Delete user permanently'}>
-              <span>
-                <IconButton
-                  size="small"
-                  disabled={isProtected}
-                  onClick={() => setDeleteDialogUser(p.row)}
-                  sx={{
-                    color: 'error.main',
-                    '&:hover': { bgcolor: 'error.50' },
-                  }}
-                >
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Stack>
-        );
-      },
-    },
   ];
 
   const kpis = [
