@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
   DialogContentText, DialogTitle, FormControlLabel, FormGroup, IconButton,
-  InputAdornment, MenuItem, Select, Stack, Switch, TextField, ToggleButton,
+  InputAdornment, ListItemIcon, ListItemText, Menu, MenuItem, Select, Stack, Switch, TextField, ToggleButton,
   ToggleButtonGroup, Tooltip, Typography, keyframes,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -20,6 +20,7 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
@@ -136,6 +137,9 @@ export const UsersPage: React.FC = () => {
     media: true,
     alerts: true,
   });
+
+  // Action menu anchor state (3-dot menu)
+  const [actionMenu, setActionMenu] = useState<{ anchorEl: HTMLElement; user: UserRow } | null>(null);
 
   const isProtectedAdmin = useCallback((row: UserRow) => {
     const e = (row.email || '').toLowerCase().trim();
@@ -342,81 +346,6 @@ export const UsersPage: React.FC = () => {
       },
     },
     {
-      field: 'actions', headerName: 'Actions', width: 210, sortable: false, filterable: false, align: 'center', headerAlign: 'center',
-      renderCell: (p) => {
-        const isProtected = isProtectedAdmin(p.row);
-        return (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <Tooltip title={isProtected ? 'Protected account' : (p.row.enabled ? 'Deactivate user' : 'Reactivate user')}>
-              <span>
-                <IconButton
-                  size="small"
-                  disabled={isProtected}
-                  onClick={() => setStatusDialogUser(p.row)}
-                  sx={{
-                    color: p.row.enabled ? 'error.main' : 'success.main',
-                    bgcolor: p.row.enabled ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
-                    '&:hover': { bgcolor: p.row.enabled ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)' },
-                  }}
-                >
-                  {p.row.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title={isProtected ? 'Protected account' : 'Delete user permanently'}>
-              <span>
-                <IconButton
-                  size="small"
-                  disabled={isProtected}
-                  onClick={() => setDeleteDialogUser(p.row)}
-                  sx={{
-                    color: '#EF4444',
-                    bgcolor: 'rgba(239,68,68,0.1)',
-                    '&:hover': { bgcolor: 'rgba(239,68,68,0.25)' },
-                  }}
-                >
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Clear user history (trips, bookings, media, activity)">
-              <IconButton
-                size="small"
-                sx={{
-                  color: 'warning.main',
-                  bgcolor: 'rgba(245,158,11,0.1)',
-                  '&:hover': { bgcolor: 'rgba(245,158,11,0.2)' },
-                }}
-                onClick={() => {
-                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
-                  setClearHistoryUser(p.row);
-                }}
-              >
-                <HistoryToggleOffIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Grant Offer / Extra Perks">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={() => setSelectedUserForOffer({ id: p.row.id, name: p.row.name, email: p.row.email })}
-                sx={{ '&:hover': { bgcolor: 'primary.50' } }}
-              >
-                <CardGiftcardIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={p.row.lat != null ? 'Show on map' : 'No location shared'}>
-              <span>
-                <IconButton size="small" disabled={p.row.lat == null} onClick={() => locate(p.row)}>
-                  <MyLocationIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-          </Stack>
-        );
-      },
-    },
-    {
       field: 'online', headerName: 'Presence', width: 130,
       renderCell: (p) => (
         <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
@@ -437,6 +366,25 @@ export const UsersPage: React.FC = () => {
     { field: 'lastSeen', headerName: 'Last seen', width: 130, valueGetter: (_v, r) => (r.online ? 'Now' : timeAgo(r.lastSeen || r.lastLogin)) },
     { field: 'lastLogin', headerName: 'Last login', width: 180, valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '—') },
     { field: 'createdAt', headerName: 'Joined', width: 120, valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : '—') },
+    {
+      field: 'actions', headerName: 'Actions', width: 80, sortable: false, filterable: false, align: 'center', headerAlign: 'center',
+      renderCell: (p) => (
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActionMenu({ anchorEl: e.currentTarget, user: p.row });
+          }}
+          aria-label={`Actions for ${p.row.name}`}
+          sx={{
+            color: 'text.secondary',
+            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      ),
+    },
   ];
 
   const kpis = [
@@ -739,6 +687,137 @@ export const UsersPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 3-Dot Row Action Menu */}
+      <Menu
+        anchorEl={actionMenu?.anchorEl}
+        open={Boolean(actionMenu)}
+        onClose={() => setActionMenu(null)}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        PaperProps={{
+          sx: {
+            minWidth: 220,
+            borderRadius: '12px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            border: '1px solid',
+            borderColor: 'divider',
+            p: 0.5,
+          },
+        }}
+      >
+        {actionMenu && (() => {
+          const user = actionMenu.user;
+          const isProtected = isProtectedAdmin(user);
+          return (
+            <>
+              <MenuItem
+                disabled={isProtected}
+                onClick={() => {
+                  setStatusDialogUser(user);
+                  setActionMenu(null);
+                }}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  gap: 1.5,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  color: user.enabled ? 'error.main' : 'success.main',
+                }}
+              >
+                <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}>
+                  {user.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+                </ListItemIcon>
+                <ListItemText primary={user.enabled ? 'Deactivate User' : 'Reactivate User'} />
+              </MenuItem>
+
+              <MenuItem
+                disabled={isProtected}
+                onClick={() => {
+                  setDeleteDialogUser(user);
+                  setActionMenu(null);
+                }}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  gap: 1.5,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  color: '#EF4444',
+                }}
+              >
+                <ListItemIcon sx={{ color: '#EF4444', minWidth: 'auto' }}>
+                  <DeleteOutlineIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Delete Permanently" />
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
+                  setClearHistoryUser(user);
+                  setActionMenu(null);
+                }}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  gap: 1.5,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  color: 'warning.main',
+                }}
+              >
+                <ListItemIcon sx={{ color: 'warning.main', minWidth: 'auto' }}>
+                  <HistoryToggleOffIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Clear History" />
+              </MenuItem>
+
+              <MenuItem
+                onClick={() => {
+                  setSelectedUserForOffer({ id: user.id, name: user.name, email: user.email });
+                  setActionMenu(null);
+                }}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  gap: 1.5,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  color: 'primary.main',
+                }}
+              >
+                <ListItemIcon sx={{ color: 'primary.main', minWidth: 'auto' }}>
+                  <CardGiftcardIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="Grant Offer / Perks" />
+              </MenuItem>
+
+              {user.lat != null && (
+                <MenuItem
+                  onClick={() => {
+                    locate(user);
+                    setActionMenu(null);
+                  }}
+                  sx={{
+                    borderRadius: '8px',
+                    py: 1,
+                    gap: 1.5,
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'info.main', minWidth: 'auto' }}>
+                    <MyLocationIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText primary="View on Map" />
+                </MenuItem>
+              )}
+            </>
+          );
+        })()}
+      </Menu>
     </Box>
   );
 };
