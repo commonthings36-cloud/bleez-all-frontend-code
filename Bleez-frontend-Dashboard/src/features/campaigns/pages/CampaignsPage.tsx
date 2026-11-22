@@ -61,6 +61,7 @@ import {
   Search,
   Public,
   Close,
+  ContentCopy,
 } from '@mui/icons-material';
 import { enqueueSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
@@ -682,8 +683,8 @@ export const CampaignsPage: React.FC = () => {
   // ───────── redesigned view helpers ─────────
   const campFade = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}`;
   const [campQuery, setCampQuery] = useState('');
-  const [campStatus, setCampStatus] = useState<'ALL' | 'ACTIVE' | 'PENDING' | 'DRAFT' | 'PAUSED'>('ALL');
-  const statusBucket = (s: string) => (s === 'APPROVED' || s === 'ACTIVE' ? 'ACTIVE' : s === 'PENDING_APPROVAL' || s === 'SUBMITTED' ? 'PENDING' : s);
+  const [campStatus, setCampStatus] = useState<'ALL' | 'DRAFT' | 'PENDING' | 'APPROVED' | 'ACTIVE' | 'PAUSED'>('ALL');
+  const statusBucket = (s: string) => (s === 'PENDING_APPROVAL' || s === 'SUBMITTED' ? 'PENDING' : s);
   const visibleCampaigns = campaigns.filter((c) => {
     if (campStatus !== 'ALL' && statusBucket(c.status) !== campStatus) return false;
     const q = campQuery.trim().toLowerCase();
@@ -703,53 +704,22 @@ export const CampaignsPage: React.FC = () => {
 
   const scopeLabel = (s: string) => (s || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
 
-  const campaignColumns: GridColDef<Campaign>[] = [
-    {
-      field: 'name', headerName: 'Campaign', flex: 1, minWidth: 260,
-      renderCell: (p) => (
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-          <Box sx={{ width: 38, height: 38, borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: 'linear-gradient(135deg,#8B5CF6,#6366F1)' }}><CampaignIcon fontSize="small" /></Box>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.4 }}>{p.row.name}</Typography>
-            <Typography noWrap sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3 }}>ID: {p.row.id}</Typography>
-          </Box>
-        </Stack>
-      ),
-    },
-    {
-      field: 'audienceScope', headerName: 'Scope', width: 220,
-      renderCell: (p) => (
-        <Stack direction="row" spacing={0.75} alignItems="center">{getScopeIcon(p.row.audienceScope)}<Typography noWrap sx={{ fontSize: '0.85rem' }}>{scopeLabel(p.row.audienceScope)}</Typography></Stack>
-      ),
-    },
-    { field: 'paradigm', headerName: 'Paradigm', width: 130, renderCell: (p) => <Chip label={p.row.paradigm} size="small" variant="outlined" color={p.row.paradigm === 'DYNAMIC' ? 'secondary' : 'default'} sx={{ fontWeight: 700 }} /> },
-    { field: 'status', headerName: 'Status', width: 190, renderCell: (p) => getStatusChip(p.row.status) },
-    {
-      field: 'priority', headerName: 'Priority', width: 140, type: 'number',
-      renderCell: (p) => (
-        <Box sx={{ width: '100%' }}>
-          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700 }}>{p.row.priority}/10</Typography>
-          <LinearProgress variant="determinate" value={(Number(p.row.priority) || 0) * 10} sx={{ height: 5, borderRadius: 4, mt: 0.4 }} />
-        </Box>
-      ),
-    },
-    { field: 'creatorUserRole', headerName: 'Created by', width: 150, valueGetter: (_v, r) => (r.creatorUserRole || 'SUPER_ADMIN').replace(/_/g, ' ') },
-    {
-      field: 'actions', headerName: 'Actions', width: 200, sortable: false, align: 'right', headerAlign: 'right',
-      renderCell: (p) => (
-        <Stack direction="row" spacing={0.5} alignItems="center">
-          {p.row.status === 'DRAFT' && <Button size="small" variant="outlined" onClick={() => handleSubmitForApproval(p.row.id)}>Submit approval</Button>}
-          {p.row.status === 'PENDING_APPROVAL' && <Button size="small" variant="contained" color="success" onClick={() => handleApprove(p.row.id)}>Approve</Button>}
-          {(p.row.status === 'APPROVED' || p.row.status === 'PAUSED') && <Tooltip title="Activate"><IconButton size="small" color="primary" onClick={() => handleActivate(p.row.id)}><PlayArrow /></IconButton></Tooltip>}
-          {p.row.status === 'ACTIVE' && <Tooltip title="Pause"><IconButton size="small" color="warning" onClick={() => handlePause(p.row.id)}><PauseCircle /></IconButton></Tooltip>}
-        </Stack>
-      ),
-    },
+  const STAGES: { key: 'DRAFT' | 'PENDING' | 'APPROVED' | 'ACTIVE' | 'PAUSED'; label: string; hint: string; color: string; text: string }[] = [
+    { key: 'DRAFT', label: 'Draft', hint: 'Being written', color: '#64748B', text: '#475569' },
+    { key: 'PENDING', label: 'Pending approval', hint: 'Waiting for a reviewer', color: '#F59E0B', text: '#B45309' },
+    { key: 'APPROVED', label: 'Approved', hint: 'Ready to launch', color: '#3B82F6', text: '#1D4ED8' },
+    { key: 'ACTIVE', label: 'Live', hint: 'Reaching travelers', color: '#16A34A', text: '#15803D' },
+    { key: 'PAUSED', label: 'Paused', hint: 'Stopped for now', color: '#F97316', text: '#C2410C' },
   ];
+  const stageOf = (status: string) => STAGES.find((st) => st.key === statusBucket(status));
+  const stageCount = (k: string) => campaigns.filter((c) => statusBucket(c.status) === k).length;
+  const shortDate = (v?: string) => (v ? new Date(v).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+  const niceRole = (r?: string) => (r || 'Super admin').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (m) => m.toUpperCase());
+  const niceType = (t?: string) => (t || '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (m) => m.toUpperCase());
 
   const funnel = selectedAnalytics ? [
-    { label: 'Delivered of target', value: rate(selectedAnalytics.deliveredCount, selectedAnalytics.targetCount), color: '#3B82F6', raw: `${selectedAnalytics.deliveredCount.toLocaleString()} / ${selectedAnalytics.targetCount.toLocaleString()}` },
-    { label: 'Impressions of delivered', value: rate(selectedAnalytics.impressionCount, selectedAnalytics.deliveredCount), color: '#7C3AED', raw: selectedAnalytics.impressionCount.toLocaleString() },
+    { label: 'Delivered of target', value: rate(selectedAnalytics.deliveredCount, selectedAnalytics.targetCount), color: '#3B82F6', raw: `${Number(selectedAnalytics.deliveredCount ?? 0).toLocaleString()} / ${Number(selectedAnalytics.targetCount ?? 0).toLocaleString()}` },
+    { label: 'Impressions of delivered', value: rate(selectedAnalytics.impressionCount, selectedAnalytics.deliveredCount), color: '#7C3AED', raw: Number(selectedAnalytics.impressionCount ?? 0).toLocaleString() },
     { label: 'Click-through rate', value: Number(selectedAnalytics.ctrPercent) || 0, color: '#F59E0B', raw: `${selectedAnalytics.ctrPercent}%` },
     { label: 'Conversion rate', value: Number(selectedAnalytics.conversionRatePercent) || 0, color: '#10B981', raw: `${selectedAnalytics.conversionRatePercent}%` },
   ] : [];
@@ -784,6 +754,36 @@ export const CampaignsPage: React.FC = () => {
         ))}
       </Box>
 
+      {/* Lifecycle pipeline: also works as the status filter */}
+      <GlassCard sx={{ p: 2, mb: 3, animation: `${campFade} .55s .2s ease-out both` }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5, px: 0.5 }}>
+          <Typography sx={{ fontWeight: 800 }}>Campaign pipeline</Typography>
+          <Typography variant="caption" color="text.secondary">Click a stage to filter the list</Typography>
+        </Stack>
+        <Box sx={{ display: 'grid', gap: 1.25, gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' } }}>
+          {STAGES.map((st, i) => {
+            const on = campStatus === st.key;
+            const n = stageCount(st.key);
+            return (
+              <Box
+                key={st.key} role="button" tabIndex={0}
+                onClick={() => { setActiveTab(0); setCampStatus(on ? 'ALL' : st.key); }}
+                onKeyDown={(e) => e.key === 'Enter' && (setActiveTab(0), setCampStatus(on ? 'ALL' : st.key))}
+                sx={{ position: 'relative', p: 1.75, height: 92, borderRadius: '14px', cursor: 'pointer', border: '2px solid', borderColor: on ? st.color : 'divider', bgcolor: on ? `${st.color}14` : 'transparent', transition: 'all .2s', '&:hover': { borderColor: st.color, transform: 'translateY(-2px)' } }}
+              >
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.3 }}>{st.label}</Typography>
+                  <Box sx={{ width: 9, height: 9, mt: 0.5, borderRadius: '50%', bgcolor: st.color, opacity: n ? 1 : 0.35 }} />
+                </Stack>
+                <Typography sx={{ fontWeight: 800, fontSize: '1.7rem', lineHeight: 1.25, color: n ? st.color : 'text.disabled' }}>{n}</Typography>
+                <Typography noWrap color="text.secondary" sx={{ fontSize: '0.7rem' }}>{st.hint}</Typography>
+                {i < STAGES.length - 1 && <Box sx={{ display: { xs: 'none', md: 'block' }, position: 'absolute', right: -11, top: '50%', transform: 'translateY(-50%)', zIndex: 1, color: 'text.disabled', fontSize: 14, lineHeight: 1, bgcolor: 'background.paper', borderRadius: '50%' }}>›</Box>}
+              </Box>
+            );
+          })}
+        </Box>
+      </GlassCard>
+
       <GlassCard sx={{ mb: 3, animation: `${campFade} .6s .3s ease-out both` }}>
         <Tabs
           value={activeTab}
@@ -801,40 +801,105 @@ export const CampaignsPage: React.FC = () => {
         {/* Tab 0: Campaigns */}
         {activeTab === 0 && (
           <Box sx={{ p: 2.5 }}>
-            <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
+            <Stack direction="row" flexWrap="wrap" useFlexGap spacing={1.5} alignItems="center" sx={{ mb: 2.5 }}>
               <TextField
-                size="small" placeholder="Search campaign name, ID, scope…" value={campQuery} onChange={(e) => setCampQuery(e.target.value)}
-                sx={{ width: { xs: '100%', sm: 320 } }}
+                size="small" placeholder="Search campaign name, ID or audience…" value={campQuery} onChange={(e) => setCampQuery(e.target.value)}
+                sx={{ width: { xs: '100%', sm: 340 } }}
                 InputProps={{ startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment> }}
               />
-              <ToggleButtonGroup size="small" exclusive value={campStatus} onChange={(_, v) => v && setCampStatus(v)} color="primary" sx={{ flexWrap: 'wrap' }}>
-                {(['ALL', 'ACTIVE', 'PENDING', 'DRAFT', 'PAUSED'] as const).map((s) => (
-                  <ToggleButton key={s} value={s} sx={{ px: 2, fontWeight: 700 }}>{s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}</ToggleButton>
-                ))}
-              </ToggleButtonGroup>
+              {campStatus !== 'ALL' && (
+                <Chip label={`Stage: ${STAGES.find((st) => st.key === campStatus)?.label}`} onDelete={() => setCampStatus('ALL')} sx={{ fontWeight: 700 }} />
+              )}
               <Box sx={{ flexGrow: 1 }} />
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Showing {visibleCampaigns.length} of {campaigns.length}</Typography>
             </Stack>
+
             {!loading && visibleCampaigns.length === 0 ? (
               <EmptyState
                 title={campaigns.length ? 'No campaigns match your filters' : 'No campaigns yet'}
-                description={campaigns.length ? 'Try clearing the search or status filter.' : 'Create your first campaign to start engaging travelers.'}
+                description={campaigns.length ? 'Try clearing the search or the stage filter.' : 'Create your first campaign to start engaging travelers.'}
                 actionLabel={campaigns.length ? undefined : 'Create Campaign'}
                 onAction={campaigns.length ? undefined : () => setOpenCreateDialog(true)}
               />
             ) : (
-              <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                <DataGrid
-                  rows={visibleCampaigns}
-                  columns={campaignColumns}
-                  getRowId={(r) => r.id}
-                  rowHeight={64}
-                  autoHeight
-                  disableRowSelectionOnClick
-                  pageSizeOptions={[10, 25, 50]}
-                  initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                  sx={{ border: 0, minWidth: 1250, '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 800 }, '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center', lineHeight: 1.4 } }}
-                />
+              <Box sx={{ display: 'grid', gap: 2.5, gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', xl: 'repeat(3, 1fr)' } }}>
+                {visibleCampaigns.map((c, i) => {
+                  const st = stageOf(c.status);
+                  const color = st?.color || '#64748B';
+                  const m = c.metrics;
+                  const pr = Math.max(0, Math.min(10, Number(c.priority) || 0));
+                  const stageLabel = st?.label || (c.status || '').replace(/_/g, ' ').toLowerCase().replace(/^\w/, (x) => x.toUpperCase());
+                  return (
+                    <Box
+                      key={c.id}
+                      sx={{ position: 'relative', overflow: 'hidden', minHeight: 300, p: 2.5, pt: 3, borderRadius: '18px', border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', display: 'flex', flexDirection: 'column', animation: `${campFade} .5s ${i * 0.06}s ease-out both`, transition: 'transform .25s, box-shadow .25s, border-color .25s', '&:hover': { transform: 'translateY(-4px)', borderColor: color, boxShadow: `0 18px 34px -18px ${color}88` } }}
+                    >
+                      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, bgcolor: color }} />
+
+                      <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
+                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Box sx={{ width: 46, height: 46, borderRadius: '14px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${color}, ${color}bb)`, boxShadow: `0 10px 18px -10px ${color}` }}>
+                            {c.paradigm === 'DYNAMIC' ? <FlashOn /> : <CampaignIcon />}
+                          </Box>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography noWrap sx={{ fontWeight: 800, fontSize: '1.02rem', lineHeight: 1.35 }}>{c.name}</Typography>
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                              <Typography noWrap sx={{ fontSize: '0.72rem', fontFamily: 'monospace', color: 'text.secondary' }}>#{String(c.id).slice(0, 10)}</Typography>
+                              <Tooltip title="Copy full ID">
+                                <IconButton size="small" sx={{ p: 0.25 }} onClick={() => { navigator.clipboard?.writeText(String(c.id)); enqueueSnackbar('Campaign ID copied', { variant: 'success' }); }}><ContentCopy sx={{ fontSize: 13 }} /></IconButton>
+                              </Tooltip>
+                            </Stack>
+                          </Box>
+                        </Stack>
+                        <Chip size="small" label={stageLabel} sx={{ flexShrink: 0, height: 26, borderRadius: '8px', fontWeight: 800, fontSize: '0.7rem', bgcolor: `${color}1f`, color: (t) => (t.palette.mode === 'dark' ? color : (st?.text || color)) }} />
+                      </Stack>
+
+                      <Typography color="text.secondary" sx={{ mt: 1.75, fontSize: '0.84rem', lineHeight: 1.55, minHeight: 40, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {c.objective ? c.objective.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (x) => x.toUpperCase()) : c.content?.web?.title || c.content?.mobile?.title || 'No objective written yet.'}
+                      </Typography>
+
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
+                        <Chip size="small" icon={getScopeIcon(c.audienceScope)} label={c.audienceScope ? scopeLabel(c.audienceScope) : 'All users'} sx={{ height: 26, borderRadius: '8px', fontWeight: 600, fontSize: '0.72rem' }} />
+                        <Chip size="small" label={c.paradigm === 'DYNAMIC' ? 'Dynamic' : 'Static'} variant="outlined" sx={{ height: 26, borderRadius: '8px', fontWeight: 700, fontSize: '0.72rem' }} />
+                        {c.type && <Chip size="small" label={niceType(c.type)} variant="outlined" sx={{ height: 26, borderRadius: '8px', fontWeight: 600, fontSize: '0.72rem' }} />}
+                      </Stack>
+
+                      <Box sx={{ mt: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                          <Typography sx={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: 'text.secondary' }}>Priority</Typography>
+                          <Typography sx={{ fontSize: '0.78rem', fontWeight: 800 }}>{pr}/10</Typography>
+                        </Stack>
+                        <LinearProgress variant="determinate" value={pr * 10} sx={{ height: 6, borderRadius: 3, bgcolor: `${color}22`, '& .MuiLinearProgress-bar': { bgcolor: color, borderRadius: 3 } }} />
+                      </Box>
+
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', mt: 1.75, py: 1, borderTop: '1px dashed', borderBottom: '1px dashed', borderColor: 'divider' }}>
+                        {[
+                          { k: 'Target', v: m && m.targetCount != null ? Number(m.targetCount).toLocaleString() : '—' },
+                          { k: 'Delivered', v: m && m.deliveredCount != null ? Number(m.deliveredCount).toLocaleString() : '—' },
+                          { k: 'Revenue', v: m && m.attributedRevenue != null ? `$${Number(m.attributedRevenue).toLocaleString()}` : '—' },
+                        ].map((x) => (
+                          <Box key={x.k} sx={{ textAlign: 'center' }}>
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: x.v === '—' ? 'text.disabled' : 'text.primary' }}>{x.v}</Typography>
+                            <Typography color="text.secondary" sx={{ fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase' }}>{x.k}</Typography>
+                          </Box>
+                        ))}
+                      </Box>
+
+                      <Box sx={{ flexGrow: 1 }} />
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1} sx={{ mt: 1.75 }}>
+                        <Typography noWrap color="text.secondary" sx={{ fontSize: '0.74rem', minWidth: 0 }}>
+                          {[c.createdAt ? shortDate(c.createdAt) : '', niceRole(c.creatorUserRole)].filter(Boolean).join(' · ')}
+                        </Typography>
+                        <Stack direction="row" spacing={0.75} sx={{ flexShrink: 0 }}>
+                          {c.status === 'DRAFT' && <Button size="small" variant="outlined" onClick={() => handleSubmitForApproval(c.id)} sx={{ fontWeight: 700 }}>Send for approval</Button>}
+                          {(c.status === 'PENDING_APPROVAL' || c.status === 'SUBMITTED') && <Button size="small" variant="contained" color="success" startIcon={<CheckCircle />} onClick={() => handleApprove(c.id)} sx={{ fontWeight: 700 }}>Approve</Button>}
+                          {(c.status === 'APPROVED' || c.status === 'PAUSED') && <Button size="small" variant="contained" startIcon={<PlayArrow />} onClick={() => handleActivate(c.id)} sx={{ fontWeight: 700 }}>{c.status === 'PAUSED' ? 'Resume' : 'Launch'}</Button>}
+                          {c.status === 'ACTIVE' && <Button size="small" variant="outlined" color="warning" startIcon={<PauseCircle />} onClick={() => handlePause(c.id)} sx={{ fontWeight: 700 }}>Pause</Button>}
+                        </Stack>
+                      </Stack>
+                    </Box>
+                  );
+                })}
               </Box>
             )}
           </Box>
@@ -883,9 +948,9 @@ export const CampaignsPage: React.FC = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>{selectedAnalytics.campaignName}</Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2, mb: 3.5 }}>
                   {[
-                    { l: 'Target audience', v: selectedAnalytics.targetCount.toLocaleString(), c: '#7C3AED' },
-                    { l: 'Delivered', v: selectedAnalytics.deliveredCount.toLocaleString(), c: '#3B82F6' },
-                    { l: `Impressions (CTR ${selectedAnalytics.ctrPercent}%)`, v: selectedAnalytics.impressionCount.toLocaleString(), c: '#F59E0B' },
+                    { l: 'Target audience', v: Number(selectedAnalytics.targetCount ?? 0).toLocaleString(), c: '#7C3AED' },
+                    { l: 'Delivered', v: Number(selectedAnalytics.deliveredCount ?? 0).toLocaleString(), c: '#3B82F6' },
+                    { l: `Impressions (CTR ${selectedAnalytics.ctrPercent}%)`, v: Number(selectedAnalytics.impressionCount ?? 0).toLocaleString(), c: '#F59E0B' },
                     { l: 'Conversions & revenue', v: `${selectedAnalytics.conversionCount} · $${Number(selectedAnalytics.attributedRevenue || 0).toLocaleString()}`, c: '#10B981' },
                   ].map((t) => (
                     <Box key={t.l} sx={{ p: 2, height: 96, borderRadius: '16px', border: '1px solid', borderColor: 'divider', borderLeft: `4px solid ${t.c}`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>

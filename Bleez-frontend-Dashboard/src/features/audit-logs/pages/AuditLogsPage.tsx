@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Avatar,
   Box,
   Button,
+  Drawer,
+  keyframes,
   Chip,
   CircularProgress,
   Dialog,
@@ -76,6 +79,8 @@ interface AuditOverview {
   activeAdminsCount: number;
   moduleBreakdown: Record<string, number>;
 }
+
+const fadeUp = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`;
 
 export const AuditLogsPage: React.FC = () => {
   const { enqueueSnackbar } = useSnackbar();
@@ -245,33 +250,39 @@ export const AuditLogsPage: React.FC = () => {
     }
   };
 
+  const initials = (e?: string) => (e || 'A').split(/[\s@.]/).filter(Boolean).slice(0, 2).map((x) => x[0]?.toUpperCase()).join('');
+  const pill = (c: { bg: string; color: string }) => ({ alignSelf: 'center', height: 26, borderRadius: '8px', fontWeight: 700, fontSize: '0.7rem', bgcolor: c.bg, color: c.color });
+  const okStatus = (st?: string) => ['SUCCESS', 'OK', 'COMPLETED'].includes(String(st).toUpperCase());
+  const moduleEntries = Object.entries(overview?.moduleBreakdown || {}).sort((x, y) => y[1] - x[1]).slice(0, 8);
+
+  const kpis = [
+    { label: 'Total events', value: (overview?.totalEvents ?? totalCount).toLocaleString(), sub: 'Immutable audit trail', color: '#6366F1', icon: <HistoryIcon /> },
+    { label: 'Last 24 hours', value: (overview?.events24h ?? 0).toLocaleString(), sub: 'Actions logged today', color: '#0EA5E9', icon: <SecurityIcon /> },
+    { label: 'Critical / warnings', value: `${(overview?.criticalCount ?? 0).toLocaleString()} / ${(overview?.warningCount ?? 0).toLocaleString()}`, sub: 'Need a human look', color: '#F59E0B', icon: <WarningAmberIcon /> },
+    { label: 'Active admins', value: (overview?.activeAdminsCount ?? 0).toLocaleString(), sub: 'Took an action recently', color: '#7C3AED', icon: <AdminPanelSettingsIcon /> },
+  ];
+
+  const Field: React.FC<{ label: string; value?: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase' }}>{label}</Typography>
+      <Typography sx={{ fontWeight: 600, fontSize: '0.9rem', wordBreak: 'break-word', fontFamily: mono ? 'monospace' : undefined }}>{value || '—'}</Typography>
+    </Box>
+  );
+
+  const cellText = { fontSize: '0.84rem', lineHeight: 1.4 } as const;
+
   return (
     <Box>
       <PageHeader
-        title="Admin Audit Logs & Action Trail"
-        subtitle="Track admin actions, module alterations, IP addresses, timestamps, and security events."
+        title="Audit Logs"
+        subtitle="Every admin action across the platform: who did what, where from, and when"
         breadcrumbs={[{ label: 'Platform' }, { label: 'Audit Logs' }]}
         action={
           <Stack direction="row" spacing={1.5}>
-            <Button
-              variant="outlined"
-              startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />}
-              onClick={handleExportCsv}
-              disabled={exporting || loading}
-              sx={{ fontWeight: 700 }}
-            >
+            <Button variant="outlined" startIcon={exporting ? <CircularProgress size={16} /> : <DownloadIcon />} onClick={handleExportCsv} disabled={exporting || loading} sx={{ fontWeight: 700 }}>
               Export CSV
             </Button>
-            <Button
-              variant="contained"
-              startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
-              onClick={() => {
-                fetchOverview();
-                fetchLogs();
-              }}
-              disabled={loading}
-              sx={{ fontWeight: 700 }}
-            >
+            <Button variant="contained" startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />} onClick={() => { fetchOverview(); fetchLogs(); }} disabled={loading} sx={{ fontWeight: 700 }}>
               Refresh
             </Button>
           </Stack>
@@ -280,509 +291,198 @@ export const AuditLogsPage: React.FC = () => {
 
       {loading && <LinearProgress sx={{ mb: 2, borderRadius: 1 }} />}
 
-      {/* KPI Overview Metric Cards */}
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          mb: 3,
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' },
-        }}
-      >
-        {/* Total Events */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Total Audit Events
-            </Typography>
-            <HistoryIcon sx={{ color: '#6366F1', fontSize: 24 }} />
-          </Stack>
-          <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>
-            {(overview?.totalEvents ?? totalCount).toLocaleString()}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-            Immutable security trail records
-          </Typography>
-        </GlassCard>
-
-        {/* 24h Velocity */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              24h Event Velocity
-            </Typography>
-            <SecurityIcon sx={{ color: '#10B981', fontSize: 24 }} />
-          </Stack>
-          <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>
-            {(overview?.events24h ?? 0).toLocaleString()}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-            Actions logged in last 24 hours
-          </Typography>
-        </GlassCard>
-
-        {/* Security & Warnings */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Security & Alerts
-            </Typography>
-            <WarningAmberIcon sx={{ color: '#F59E0B', fontSize: 24 }} />
-          </Stack>
-          <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mt: 1 }}>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>
-              {(overview?.criticalCount ?? 0).toLocaleString()}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              critical / security
-            </Typography>
-          </Stack>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-            {(overview?.warningCount ?? 0).toLocaleString()} warning notices logged
-          </Typography>
-        </GlassCard>
-
-        {/* Active Admins */}
-        <GlassCard sx={{ p: 2.5 }}>
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase' }}>
-              Active Operators
-            </Typography>
-            <AdminPanelSettingsIcon sx={{ color: '#0EA5E9', fontSize: 24 }} />
-          </Stack>
-          <Typography variant="h4" sx={{ fontWeight: 800, mt: 1 }}>
-            {(overview?.activeAdminsCount ?? 1).toLocaleString()}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontSize: '0.8rem' }}>
-            Authorized admin credentials
-          </Typography>
-        </GlassCard>
+      {/* KPIs: four equal cards */}
+      <Box sx={{ display: 'grid', gap: 2, mb: 3, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' } }}>
+        {kpis.map((k, i) => (
+          <GlassCard key={k.label} sx={{ p: 2.5, height: 128, animation: `${fadeUp} .45s ease ${i * 0.07}s both` }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+              <Box>
+                <Typography color="text.secondary" sx={{ fontSize: '0.78rem', fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase' }}>{k.label}</Typography>
+                <Typography sx={{ fontSize: '1.9rem', fontWeight: 800, lineHeight: 1.3 }}>{k.value}</Typography>
+              </Box>
+              <Box sx={{ width: 42, height: 42, borderRadius: '12px', display: 'grid', placeItems: 'center', bgcolor: `${k.color}1a`, color: k.color }}>{k.icon}</Box>
+            </Stack>
+            <Typography noWrap color="text.secondary" sx={{ fontSize: '0.8rem' }}>{k.sub}</Typography>
+          </GlassCard>
+        ))}
       </Box>
 
-      {/* Main GlassCard Container */}
-      <GlassCard sx={{ p: 2.5 }}>
-        {/* Filters and Controls Bar */}
-        <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          spacing={2}
-          alignItems={{ xs: 'stretch', md: 'center' }}
-          justifyContent="space-between"
-          sx={{ mb: 2.5 }}
-        >
-          {/* Search Box */}
-          <TextField
-            size="small"
-            placeholder="Search action, details, actor email, IP..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: { xs: '100%', md: 320 } }}
-          />
-
-          {/* Dropdown Filters */}
-          <Stack direction="row" spacing={1.5} flexWrap="wrap" alignItems="center">
-            {/* Module Filter */}
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel id="module-filter-label">Module</InputLabel>
-              <Select
-                labelId="module-filter-label"
-                label="Module"
-                value={moduleFilter}
-                onChange={(e) => {
-                  setModuleFilter(e.target.value);
-                  setPage(0);
-                }}
-              >
-                <MenuItem value="ALL">All Modules</MenuItem>
-                <MenuItem value="SCHEDULER">Scheduler</MenuItem>
-                <MenuItem value="SECURITY">Security</MenuItem>
-                <MenuItem value="USERS">Users</MenuItem>
-                <MenuItem value="CAMPAIGNS">Campaigns</MenuItem>
-                <MenuItem value="EMERGENCY_SOS">Emergency SOS</MenuItem>
-                <MenuItem value="BOOKINGS">Bookings</MenuItem>
-                <MenuItem value="PLATFORM">Platform</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Severity Filter */}
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel id="severity-filter-label">Severity</InputLabel>
-              <Select
-                labelId="severity-filter-label"
-                label="Severity"
-                value={severityFilter}
-                onChange={(e) => {
-                  setSeverityFilter(e.target.value);
-                  setPage(0);
-                }}
-              >
-                <MenuItem value="ALL">All Severities</MenuItem>
-                <MenuItem value="INFO">Info</MenuItem>
-                <MenuItem value="WARN">Warning</MenuItem>
-                <MenuItem value="CRITICAL">Critical</MenuItem>
-                <MenuItem value="SECURITY">Security</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Status Filter */}
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel id="status-filter-label">Status</InputLabel>
-              <Select
-                labelId="status-filter-label"
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setPage(0);
-                }}
-              >
-                <MenuItem value="ALL">All Statuses</MenuItem>
-                <MenuItem value="SUCCESS">Success</MenuItem>
-                <MenuItem value="FAILED">Failed</MenuItem>
-                <MenuItem value="WARNING">Warning</MenuItem>
-              </Select>
-            </FormControl>
-
-            {/* Reset Filters */}
-            {hasActiveFilters && (
-              <Tooltip title="Reset all filters">
-                <IconButton onClick={resetFilters} size="small" color="secondary">
-                  <FilterAltOffIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
+      {/* Module quick filters */}
+      {moduleEntries.length > 0 && (
+        <GlassCard sx={{ p: 2, mb: 3, animation: `${fadeUp} .5s ease .2s both` }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', mr: 0.5 }}>Where the activity is</Typography>
+            {moduleEntries.map(([m, n]) => {
+              const c = getModuleBadgeColor(m);
+              const on = moduleFilter === m;
+              return (
+                <Chip
+                  key={m}
+                  onClick={() => { setModuleFilter(on ? 'ALL' : m); setPage(0); }}
+                  label={`${m.replace(/_/g, ' ')} · ${n.toLocaleString()}`}
+                  sx={{ height: 30, borderRadius: '9px', fontWeight: 700, fontSize: '0.74rem', bgcolor: on ? c.color : c.bg, color: on ? '#fff' : c.color, '&:hover': { bgcolor: on ? c.color : c.bg, filter: 'brightness(1.08)' } }}
+                />
+              );
+            })}
           </Stack>
+        </GlassCard>
+      )}
+
+      <GlassCard sx={{ animation: `${fadeUp} .5s ease .25s both` }}>
+        {/* Filters */}
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ p: 2.5, pb: 1.5 }} alignItems={{ md: 'center' }}>
+          <TextField
+            size="small" placeholder="Search actor, action, target or details…" value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+            sx={{ flex: 1, minWidth: 220 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Module</InputLabel>
+            <Select label="Module" value={moduleFilter} onChange={(e) => { setModuleFilter(e.target.value); setPage(0); }}>
+              <MenuItem value="ALL">All modules</MenuItem>
+              {Array.from(new Set([...Object.keys(overview?.moduleBreakdown || {}), 'SECURITY', 'USERS', 'CAMPAIGNS', 'BOOKINGS', 'SCHEDULER', 'EMERGENCY_SOS'])).map((m) => <MenuItem key={m} value={m}>{m.replace(/_/g, ' ')}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Severity</InputLabel>
+            <Select label="Severity" value={severityFilter} onChange={(e) => { setSeverityFilter(e.target.value); setPage(0); }}>
+              <MenuItem value="ALL">All severities</MenuItem>
+              <MenuItem value="INFO">Info</MenuItem>
+              <MenuItem value="WARN">Warning</MenuItem>
+              <MenuItem value="CRITICAL">Critical</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 130 }}>
+            <InputLabel>Status</InputLabel>
+            <Select label="Status" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}>
+              <MenuItem value="ALL">All</MenuItem>
+              <MenuItem value="SUCCESS">Success</MenuItem>
+              <MenuItem value="FAILED">Failed</MenuItem>
+            </Select>
+          </FormControl>
+          {hasActiveFilters && <Button startIcon={<FilterAltOffIcon />} onClick={resetFilters} sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>Clear</Button>}
         </Stack>
 
-        {/* Audit Logs Table */}
-        <Box sx={{ overflowX: 'auto' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'rgba(0, 0, 0, 0.02)' }}>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Timestamp</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Actor</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Module</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Action</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Target</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Client IP</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Severity</TableCell>
-                <TableCell sx={{ fontWeight: 700, py: 1.5 }}>Status</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700, py: 1.5 }}>
-                  Inspect
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {logs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} sx={{ py: 6, textAlign: 'center' }}>
-                    <EmptyState
-                      title="No Audit Records Found"
-                      description={hasActiveFilters ? 'Try adjusting your search filters.' : 'Audit events will stream here as operations execute.'}
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                logs.map((log) => {
-                  const actorEmail = log.actorEmail || log.actor_email || 'admin@bleez.ai';
-                  const actorRole = log.actorRole || log.actor_role || 'ADMIN';
-                  const targetType = log.targetType || log.target_type || 'Entity';
-                  const targetId = log.targetId || log.target_id || '—';
-                  const ip = log.ipAddress || log.ip_address || '127.0.0.1';
-                  const status = log.status || 'SUCCESS';
-                  const severity = log.severity || 'INFO';
-                  const moduleColor = getModuleBadgeColor(log.module);
-                  const severityColor = getSeverityBadgeColor(severity);
-                  const isSuccess = status === 'SUCCESS';
-
-                  return (
-                    <TableRow
-                      key={log.id}
-                      hover
-                      sx={{
-                        cursor: 'pointer',
-                        '&:last-child td, &:last-child th': { border: 0 },
-                      }}
-                      onClick={() => setSelectedLog(log)}
-                    >
-                      {/* Timestamp */}
-                      <TableCell sx={{ py: 1.5, fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                        {formatTimestamp(log.timestamp)}
-                      </TableCell>
-
-                      {/* Actor */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.82rem' }}>
-                          {actorEmail}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={actorRole}
-                          sx={{ fontSize: '0.65rem', height: 18, bgcolor: 'rgba(0, 0, 0, 0.05)', fontWeight: 600 }}
-                        />
-                      </TableCell>
-
-                      {/* Module */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Chip
-                          size="small"
-                          label={log.module}
-                          sx={{
-                            fontWeight: 700,
-                            fontSize: '0.72rem',
-                            height: 22,
-                            bgcolor: moduleColor.bg,
-                            color: moduleColor.color,
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* Action */}
-                      <TableCell sx={{ py: 1.5, fontWeight: 700, fontSize: '0.82rem' }}>
-                        {log.action}
-                      </TableCell>
-
-                      {/* Target */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.8rem' }}>
-                          {targetType}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                          {targetId.length > 18 ? targetId.substring(0, 18) + '...' : targetId}
-                        </Typography>
-                      </TableCell>
-
-                      {/* Client IP */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Chip
-                          size="small"
-                          label={ip}
-                          sx={{
-                            fontFamily: 'monospace',
-                            fontSize: '0.72rem',
-                            height: 20,
-                            bgcolor: 'rgba(0, 0, 0, 0.04)',
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* Severity */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Chip
-                          size="small"
-                          label={severity}
-                          sx={{
-                            fontWeight: 700,
-                            fontSize: '0.7rem',
-                            height: 22,
-                            bgcolor: severityColor.bg,
-                            color: severityColor.color,
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* Status */}
-                      <TableCell sx={{ py: 1.5 }}>
-                        <Chip
-                          size="small"
-                          label={status}
-                          sx={{
-                            fontWeight: 700,
-                            fontSize: '0.7rem',
-                            height: 22,
-                            bgcolor: isSuccess ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                            color: isSuccess ? '#10B981' : '#EF4444',
-                          }}
-                        />
-                      </TableCell>
-
-                      {/* Inspect */}
-                      <TableCell align="right" sx={{ py: 1.5 }}>
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLog(log);
-                          }}
-                          sx={{ color: 'primary.main' }}
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </Box>
-
-        {/* Pagination */}
-        <TablePagination
-          component="div"
-          count={totalCount}
-          page={page}
-          onPageChange={(_, newPage) => setPage(newPage)}
-          rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-          rowsPerPageOptions={[10, 25, 50, 100]}
-          sx={{ borderTop: '1px solid rgba(0, 0, 0, 0.06)', mt: 1 }}
-        />
+        {logs.length === 0 && !loading ? (
+          <Box sx={{ p: 2.5 }}>
+            <EmptyState icon={<HistoryIcon />} title={hasActiveFilters ? 'No events match these filters' : 'No audit events yet'} description={hasActiveFilters ? 'Try clearing a filter or searching for something else.' : 'Admin actions will appear here as soon as they happen.'} actionLabel={hasActiveFilters ? 'Clear filters' : undefined} onAction={hasActiveFilters ? resetFilters : undefined} />
+          </Box>
+        ) : (
+          <>
+            <Box sx={{ overflowX: 'auto' }}>
+              <Table size="medium" sx={{ minWidth: 960, '& td, & th': { px: 1.5 } }}>
+                <TableHead>
+                  <TableRow>
+                    {['When', 'Actor', 'Module', 'Action', 'Target', 'IP address', 'Severity', 'Status', ''].map((h) => (
+                      <TableCell key={h} sx={{ fontWeight: 800, fontSize: '0.72rem', letterSpacing: 0.5, textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap' }}>{h}</TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {logs.map((log) => {
+                    const email = log.actorEmail || log.actor_email || 'admin@bleez.ai';
+                    const role = log.actorRole || log.actor_role || 'ADMIN';
+                    const mc = getModuleBadgeColor(log.module);
+                    const sc = getSeverityBadgeColor(log.severity);
+                    const ok = okStatus(log.status);
+                    return (
+                      <TableRow key={log.id} hover onClick={() => setSelectedLog(log)} sx={{ cursor: 'pointer', '& td': { py: 1.25 } }}>
+                        <TableCell sx={{ whiteSpace: 'nowrap' }}><Typography sx={{ ...cellText, fontWeight: 600 }}>{log.timestamp ? new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '—'}</Typography><Typography color="text.secondary" sx={{ fontSize: '0.72rem', lineHeight: 1.3 }}>{log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</Typography></TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 170 }}>
+                            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.74rem', fontWeight: 800 }}>{initials(email)}</Avatar>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography noWrap sx={{ ...cellText, fontWeight: 700 }}>{email}</Typography>
+                              <Typography color="text.secondary" sx={{ fontSize: '0.72rem', lineHeight: 1.3 }}>{role}</Typography>
+                            </Box>
+                          </Stack>
+                        </TableCell>
+                        <TableCell><Chip size="small" label={String(log.module || '—').replace(/_/g, ' ')} sx={pill(mc)} /></TableCell>
+                        <TableCell sx={{ maxWidth: 210 }}>
+                          <Typography noWrap sx={{ ...cellText, fontWeight: 700 }}>{log.action}</Typography>
+                          <Typography noWrap color="text.secondary" sx={{ fontSize: '0.74rem', lineHeight: 1.3 }}>{log.details}</Typography>
+                        </TableCell>
+                        <TableCell sx={{ maxWidth: 170 }}>
+                          <Typography noWrap sx={cellText}>{log.targetType || log.target_type || '—'}</Typography>
+                          <Typography noWrap color="text.secondary" sx={{ fontSize: '0.72rem', fontFamily: 'monospace', lineHeight: 1.3 }}>{log.targetId || log.target_id || ''}</Typography>
+                        </TableCell>
+                        <TableCell><Typography sx={{ ...cellText, fontFamily: 'monospace' }}>{log.ipAddress || log.ip_address || '—'}</Typography></TableCell>
+                        <TableCell><Chip size="small" label={log.severity || 'INFO'} sx={pill(sc)} /></TableCell>
+                        <TableCell><Chip size="small" label={log.status} sx={pill(ok ? { bg: 'rgba(22,163,74,.14)', color: '#16A34A' } : { bg: 'rgba(239,68,68,.14)', color: '#EF4444' })} /></TableCell>
+                        <TableCell align="right">
+                          <Tooltip title="Inspect"><IconButton size="small" onClick={(e) => { e.stopPropagation(); setSelectedLog(log); }}><VisibilityIcon fontSize="small" /></IconButton></Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </Box>
+            <TablePagination
+              component="div"
+              count={totalCount}
+              page={page}
+              onPageChange={(_, p) => setPage(p)}
+              rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+              rowsPerPageOptions={[10, 25, 50, 100]}
+            />
+          </>
+        )}
       </GlassCard>
 
-      {/* Audit Detail Inspector Dialog */}
-      <Dialog
-        open={Boolean(selectedLog)}
-        onClose={() => setSelectedLog(null)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: { borderRadius: 3, p: 1 },
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 800, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Security Audit Trail Inspector</span>
-          <IconButton size="small" onClick={() => setSelectedLog(null)}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
-        <Divider />
-        <DialogContent sx={{ py: 2.5 }}>
-          {selectedLog && (
-            <Stack spacing={2.5}>
-              {/* Event Overview Badges */}
-              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
-                <Chip
-                  label={selectedLog.module}
-                  sx={{
-                    fontWeight: 700,
-                    bgcolor: getModuleBadgeColor(selectedLog.module).bg,
-                    color: getModuleBadgeColor(selectedLog.module).color,
-                  }}
-                />
-                <Chip
-                  label={selectedLog.severity}
-                  sx={{
-                    fontWeight: 700,
-                    bgcolor: getSeverityBadgeColor(selectedLog.severity).bg,
-                    color: getSeverityBadgeColor(selectedLog.severity).color,
-                  }}
-                />
-                <Chip
-                  label={selectedLog.status}
-                  sx={{
-                    fontWeight: 700,
-                    bgcolor: selectedLog.status === 'SUCCESS' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                    color: selectedLog.status === 'SUCCESS' ? '#10B981' : '#EF4444',
-                  }}
-                />
-                <Typography variant="caption" color="text.secondary">
-                  Logged: {formatTimestamp(selectedLog.timestamp)}
-                </Typography>
-              </Stack>
-
-              {/* Action & Details */}
-              <Box sx={{ p: 2, bgcolor: 'rgba(0, 0, 0, 0.02)', borderRadius: 2 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                  {selectedLog.action}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 0.5, color: 'text.secondary' }}>
-                  {selectedLog.details || 'No detailed message provided.'}
-                </Typography>
+      {/* Inspector side panel */}
+      <Drawer anchor="right" open={Boolean(selectedLog)} onClose={() => setSelectedLog(null)} PaperProps={{ sx: { width: { xs: '100%', sm: 460 }, borderTopLeftRadius: { sm: 20 }, borderBottomLeftRadius: { sm: 20 } } }}>
+        {selectedLog && (() => {
+          const mc = getModuleBadgeColor(selectedLog.module);
+          const sc = getSeverityBadgeColor(selectedLog.severity);
+          const ok = okStatus(selectedLog.status);
+          return (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <Box sx={{ position: 'relative', flexShrink: 0, p: 3, color: '#fff', background: `linear-gradient(135deg, #4C1D95, ${ok ? '#7C3AED' : '#DC2626'})` }}>
+                <IconButton onClick={() => setSelectedLog(null)} size="small" sx={{ position: 'absolute', top: 12, right: 12, color: '#fff' }} aria-label="close"><CloseIcon /></IconButton>
+                <Typography sx={{ opacity: 0.85, fontSize: '0.72rem', fontWeight: 800, letterSpacing: 0.8, textTransform: 'uppercase' }}>Audit event</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: '1.3rem', lineHeight: 1.3, pr: 4 }}>{selectedLog.action}</Typography>
+                <Typography sx={{ opacity: 0.9, fontSize: '0.82rem', mt: 0.5 }}>{formatTimestamp(selectedLog.timestamp)}</Typography>
+                <Stack direction="row" spacing={1} sx={{ mt: 1.75 }}>
+                  <Chip size="small" label={String(selectedLog.module).replace(/_/g, ' ')} sx={{ ...pill({ bg: 'rgba(255,255,255,.2)', color: '#fff' }), alignSelf: 'auto' }} />
+                  <Chip size="small" label={selectedLog.severity || 'INFO'} sx={{ ...pill({ bg: 'rgba(255,255,255,.2)', color: '#fff' }), alignSelf: 'auto' }} />
+                  <Chip size="small" label={selectedLog.status} sx={{ ...pill({ bg: 'rgba(255,255,255,.2)', color: '#fff' }), alignSelf: 'auto' }} />
+                </Stack>
               </Box>
-
-              {/* Actor & Target Specs */}
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                  gap: 2,
-                }}
-              >
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    ADMIN ACTOR
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5 }}>
-                    {selectedLog.actorEmail || selectedLog.actor_email || 'admin@bleez.ai'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Role: {selectedLog.actorRole || selectedLog.actor_role || 'ADMIN'} · ID: {selectedLog.actorId || selectedLog.actor_id || '—'}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    TARGET RESOURCE
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5 }}>
-                    {selectedLog.targetType || selectedLog.target_type || 'Entity'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                    ID: {selectedLog.targetId || selectedLog.target_id || '—'}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    CLIENT IP ADDRESS
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600, mt: 0.5 }}>
-                    {selectedLog.ipAddress || selectedLog.ip_address || '127.0.0.1'}
-                  </Typography>
-                </Box>
-
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    USER AGENT
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: '0.8rem', mt: 0.5, color: 'text.secondary' }}>
-                    {selectedLog.userAgent || selectedLog.user_agent || 'Mozilla/5.0'}
-                  </Typography>
-                </Box>
+              <Box sx={{ p: 3, overflowY: 'auto', flex: 1 }}>
+                <Stack spacing={2.5}>
+                  <Box sx={{ p: 2, borderRadius: '14px', border: '1px solid', borderColor: 'divider' }}>
+                    <Typography color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', mb: 0.5 }}>What happened</Typography>
+                    <Typography sx={{ lineHeight: 1.6 }}>{selectedLog.details || 'No detailed message provided.'}</Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 800 }}>{initials(selectedLog.actorEmail || selectedLog.actor_email)}</Avatar>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography noWrap sx={{ fontWeight: 800 }}>{selectedLog.actorEmail || selectedLog.actor_email || 'admin@bleez.ai'}</Typography>
+                      <Typography color="text.secondary" variant="body2">{selectedLog.actorRole || selectedLog.actor_role || 'ADMIN'}</Typography>
+                    </Box>
+                  </Stack>
+                  <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: '1fr 1fr' }}>
+                    <Field label="Actor ID" value={selectedLog.actorId || selectedLog.actor_id} mono />
+                    <Field label="IP address" value={selectedLog.ipAddress || selectedLog.ip_address} mono />
+                    <Field label="Target type" value={selectedLog.targetType || selectedLog.target_type} />
+                    <Field label="Target ID" value={selectedLog.targetId || selectedLog.target_id} mono />
+                  </Box>
+                  <Field label="Device / browser" value={selectedLog.userAgent || selectedLog.user_agent} />
+                  <Box>
+                    <Typography color="text.secondary" sx={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', mb: 0.75 }}>Raw metadata</Typography>
+                    <Box component="pre" sx={{ m: 0, p: 2, borderRadius: '12px', fontSize: '0.78rem', overflow: 'auto', maxHeight: 280, bgcolor: (t) => (t.palette.mode === 'dark' ? 'rgba(0,0,0,.35)' : 'rgba(15,23,42,.05)') }}>
+                      {JSON.stringify(selectedLog.metadata || {}, null, 2)}
+                    </Box>
+                  </Box>
+                </Stack>
               </Box>
-
-              {/* JSON Metadata Payload */}
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1 }}>
-                  METADATA & PAYLOAD SNAPSHOT
-                </Typography>
-                <Box
-                  component="pre"
-                  sx={{
-                    p: 2,
-                    bgcolor: '#0F172A',
-                    color: '#38BDF8',
-                    borderRadius: 2,
-                    fontSize: '0.8rem',
-                    overflowX: 'auto',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {JSON.stringify(selectedLog.metadata || {}, null, 2)}
-                </Box>
-              </Box>
-            </Stack>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setSelectedLog(null)} variant="outlined">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+            </Box>
+          );
+        })()}
+      </Drawer>
     </Box>
   );
 };

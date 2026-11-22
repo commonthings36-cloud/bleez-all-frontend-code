@@ -150,15 +150,33 @@ export const AvatarArt: React.FC<{ seed?: string }> = ({ seed = '' }) => {
 /** Sidebar footer card art. */
 export const SidebarArt: React.FC = () => (
   <Box aria-hidden sx={{ width: '100%', height: 84 }}>
-    <svg viewBox="0 0 220 84" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
-      <Defs />
-      <rect width="220" height="84" rx="14" fill="url(#sky)" />
-      <circle cx="170" cy="62" r="46" fill="rgba(255,255,255,.1)" />
-      <Globe cx={176} cy={46} r={30} />
-      <path d="M14 70 C 60 50, 100 30, 150 14" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="1.8" strokeDasharray="4 6" style={{ animation: `${dash} 1.4s linear infinite` }} />
-      <g style={{ animation: `${floatA} 4s ease-in-out infinite` }}><Plane x={140} y={6} r={-10} s={0.5} /></g>
-      <Cloud x={14} y={46} s={0.7} o={0.7} />
-      <Pin x={160} y={24} c="#FBBF24" s={0.5} />
+    <svg viewBox="0 0 220 84" width="100%" height="100%" preserveAspectRatio="xMaxYMid slice">
+      <defs>
+        <linearGradient id="sbCard" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#8B5CF6" />
+          <stop offset="1" stopColor="#4F46E5" />
+        </linearGradient>
+        <clipPath id="sbGlobe"><circle cx="186" cy="64" r="46" /></clipPath>
+      </defs>
+      <rect width="220" height="84" fill="url(#sbCard)" />
+      {/* globe, cropped by the card corner */}
+      <circle cx="186" cy="64" r="46" fill="rgba(255,255,255,.14)" />
+      <g clipPath="url(#sbGlobe)" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="1.2">
+        <ellipse cx="186" cy="64" rx="20" ry="46" />
+        <ellipse cx="186" cy="64" rx="38" ry="46" />
+        <line x1="140" y1="64" x2="232" y2="64" />
+        <path d="M144 46 Q186 38 228 46" />
+        <path d="M144 82 Q186 90 228 82" />
+      </g>
+      {/* orbit ring with a plane */}
+      <ellipse cx="186" cy="64" rx="60" ry="15" transform="rotate(-24 186 64)" fill="none" stroke="rgba(255,255,255,.55)" strokeWidth="1.4" />
+      <g style={{ animation: `${floatA} 4s ease-in-out infinite` }}>
+        <g transform="translate(206 44) rotate(-30)">
+          <path d="M0 0 L-11 -4 L-8 0 L-11 4 Z" fill="#fff" />
+        </g>
+      </g>
+      <circle cx="170" cy="40" r="4.5" fill="#FBBF24" />
+      <circle cx="170" cy="40" r="1.7" fill="#fff" />
     </svg>
   </Box>
 );
