@@ -131,3 +131,78 @@ export interface CampaignAnalytics {
     conversions: number;
   };
 }
+
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  description?: string;
+  rules?: AudienceRule;
+  isDynamic: boolean;
+  estimatedReach: number;
+  lastCalculatedAt?: string;
+  creatorUserId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface JourneyNode {
+  id: string;
+  type: 'TRIGGER' | 'WAIT' | 'CONDITION' | 'ACTION' | 'GOAL' | 'EXIT';
+  title: string;
+  description?: string;
+  config?: Record<string, any>;
+}
+
+export interface JourneyEdge {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  conditionBranch?: string;
+}
+
+export interface JourneyMetrics {
+  enteredCount: number;
+  activeCount: number;
+  completedCount: number;
+  goalConversionCount: number;
+  dropOffCount: number;
+}
+
+export interface Journey {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'ARCHIVED';
+  triggerType: string;
+  nodes: JourneyNode[];
+  edges: JourneyEdge[];
+  version: number;
+  metrics?: JourneyMetrics;
+  creatorUserId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  publishedAt?: string;
+}
+
+export interface AuditLogItem {
+  id: string;
+  campaignId: string;
+  userId: string;
+  userRole: string;
+  action: string;
+  details: string;
+  timestamp: string;
+}
+
+export interface CampaignOverviewResponse {
+  activeCampaigns: number;
+  pendingOpportunities: number;
+  totalDeliveredMessages: number;
+  overallEngagementRate: number;
+  totalAttributedRevenue: number;
+  totalAudienceReach: number;
+  recentCampaigns: Campaign[];
+  recentOpportunities: CampaignOpportunity[];
+  recentAuditLogs: AuditLogItem[];
+  dataFreshnessTimestamp: string;
+}

@@ -1,8 +1,23 @@
 import { apiClient } from '@/services/apiClient';
-import { Campaign, CampaignOpportunity, CampaignAnalytics, UserSearchResult, AudienceEstimate } from '../types/campaign.types';
+import {
+  Campaign,
+  CampaignOpportunity,
+  CampaignAnalytics,
+  UserSearchResult,
+  AudienceEstimate,
+  AudienceSegment,
+  Journey,
+  CampaignOverviewResponse,
+} from '../types/campaign.types';
 
 export const campaignService = {
-  // Admin Endpoints
+  // Command Center Overview
+  async getCampaignOverview(): Promise<CampaignOverviewResponse> {
+    const response = await apiClient.get<CampaignOverviewResponse>('/admin/campaigns/overview');
+    return response.data;
+  },
+
+  // Admin Campaign Endpoints
   async getAllCampaigns(): Promise<Campaign[]> {
     const response = await apiClient.get<Campaign[]>('/admin/campaigns');
     return response.data;
@@ -32,6 +47,16 @@ export const campaignService = {
 
   async updateCampaign(id: string, campaign: Partial<Campaign>): Promise<Campaign> {
     const response = await apiClient.put<Campaign>(`/admin/campaigns/${id}`, campaign);
+    return response.data;
+  },
+
+  async duplicateCampaign(id: string): Promise<Campaign> {
+    const response = await apiClient.post<Campaign>(`/admin/campaigns/${id}/duplicate`);
+    return response.data;
+  },
+
+  async archiveCampaign(id: string): Promise<Campaign> {
+    const response = await apiClient.post<Campaign>(`/admin/campaigns/${id}/archive`);
     return response.data;
   },
 
@@ -66,6 +91,11 @@ export const campaignService = {
     return response.data;
   },
 
+  async scanOpportunities(): Promise<CampaignOpportunity[]> {
+    const response = await apiClient.post<CampaignOpportunity[]>('/admin/campaigns/opportunities/scan');
+    return response.data;
+  },
+
   async convertOpportunityToDraft(id: string): Promise<Campaign> {
     const response = await apiClient.post<Campaign>(`/admin/campaigns/opportunities/${id}/convert`);
     return response.data;
@@ -73,6 +103,57 @@ export const campaignService = {
 
   async rejectOpportunity(id: string): Promise<CampaignOpportunity> {
     const response = await apiClient.post<CampaignOpportunity>(`/admin/campaigns/opportunities/${id}/reject`);
+    return response.data;
+  },
+
+  // Audience Segments Endpoints
+  async getAllAudienceSegments(): Promise<AudienceSegment[]> {
+    const response = await apiClient.get<AudienceSegment[]>('/admin/campaigns/audiences');
+    return response.data;
+  },
+
+  async createAudienceSegment(segment: Partial<AudienceSegment>): Promise<AudienceSegment> {
+    const response = await apiClient.post<AudienceSegment>('/admin/campaigns/audiences', segment);
+    return response.data;
+  },
+
+  async deleteAudienceSegment(id: string): Promise<void> {
+    await apiClient.delete(`/admin/campaigns/audiences/${id}`);
+  },
+
+  // Customer Journeys Endpoints
+  async getAllJourneys(): Promise<Journey[]> {
+    const response = await apiClient.get<Journey[]>('/admin/campaigns/journeys');
+    return response.data;
+  },
+
+  async createJourney(journey: Partial<Journey>): Promise<Journey> {
+    const response = await apiClient.post<Journey>('/admin/campaigns/journeys', journey);
+    return response.data;
+  },
+
+  async updateJourney(id: string, journey: Partial<Journey>): Promise<Journey> {
+    const response = await apiClient.put<Journey>(`/admin/campaigns/journeys/${id}`, journey);
+    return response.data;
+  },
+
+  async validateJourney(id: string): Promise<any> {
+    const response = await apiClient.post(`/admin/campaigns/journeys/${id}/validate`);
+    return response.data;
+  },
+
+  async publishJourney(id: string): Promise<Journey> {
+    const response = await apiClient.post<Journey>(`/admin/campaigns/journeys/${id}/publish`);
+    return response.data;
+  },
+
+  async pauseJourney(id: string): Promise<Journey> {
+    const response = await apiClient.post<Journey>(`/admin/campaigns/journeys/${id}/pause`);
+    return response.data;
+  },
+
+  async archiveJourney(id: string): Promise<Journey> {
+    const response = await apiClient.post<Journey>(`/admin/campaigns/journeys/${id}/archive`);
     return response.data;
   },
 
