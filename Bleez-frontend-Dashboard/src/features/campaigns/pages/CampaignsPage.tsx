@@ -35,6 +35,7 @@ import {
   ListSubheader,
   ToggleButton,
   ToggleButtonGroup,
+  Checkbox,
   keyframes,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
@@ -53,6 +54,8 @@ import {
   Person,
   Refresh,
   Delete,
+  DeleteOutline,
+  DeleteForever,
   UploadFile,
   Tune,
   GroupAdd,
@@ -68,6 +71,8 @@ import { enqueueSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { TravelHeroArt } from '@/components/Illustrations';
 import { campaignService } from '../services/campaign.service';
 import {
@@ -389,6 +394,50 @@ export const CampaignsPage: React.FC = () => {
   const [opportunities, setOpportunities] = useState<CampaignOpportunity[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAnalytics, setSelectedAnalytics] = useState<CampaignAnalytics | null>(null);
+
+  // Deletion controls state
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
+  const [deleteCampaignDialog, setDeleteCampaignDialog] = useState<Campaign | null>(null);
+  const [bulkDeleteCampaignsOpen, setBulkDeleteCampaignsOpen] = useState(false);
+  const [clearAllCampaignsOpen, setClearAllCampaignsOpen] = useState(false);
+
+  const handleDeleteCampaign = async () => {
+    if (!deleteCampaignDialog) return;
+    try {
+      await campaignService.deleteCampaign(deleteCampaignDialog.id);
+      enqueueSnackbar(`Campaign "${deleteCampaignDialog.name}" deleted permanently.`, { variant: 'success' });
+      setCampaigns((prev) => prev.filter((c) => c.id !== deleteCampaignDialog.id));
+      setSelectedCampaignIds((prev) => prev.filter((id) => id !== deleteCampaignDialog.id));
+      setDeleteCampaignDialog(null);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete campaign', { variant: 'error' });
+    }
+  };
+
+  const handleBulkDeleteCampaigns = async () => {
+    if (!selectedCampaignIds.length) return;
+    try {
+      const res = await campaignService.bulkDeleteCampaigns(selectedCampaignIds);
+      enqueueSnackbar(`Successfully deleted ${res.deleted_count ?? selectedCampaignIds.length} campaigns.`, { variant: 'success' });
+      setCampaigns((prev) => prev.filter((c) => !selectedCampaignIds.includes(c.id)));
+      setSelectedCampaignIds([]);
+      setBulkDeleteCampaignsOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to bulk delete campaigns', { variant: 'error' });
+    }
+  };
+
+  const handleClearAllCampaigns = async () => {
+    try {
+      const res = await campaignService.clearAllCampaigns();
+      enqueueSnackbar(`All ${res.cleared_count ?? 0} campaigns permanently deleted.`, { variant: 'success' });
+      setCampaigns([]);
+      setSelectedCampaignIds([]);
+      setClearAllCampaignsOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear all campaigns', { variant: 'error' });
+    }
+  };
 
   // New Campaign Form State (15-step creation wizard dialog)
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
@@ -745,6 +794,16 @@ export const CampaignsPage: React.FC = () => {
           <Stack direction="row" spacing={1.5}>
             <Button variant="outlined" startIcon={<Refresh />} onClick={fetchData} disabled={loading}>Refresh</Button>
             <Button variant="contained" startIcon={<Add />} onClick={() => setOpenCreateDialog(true)} sx={{ fontWeight: 800 }}>Create Campaign</Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteForever />}
+              onClick={() => setClearAllCampaignsOpen(true)}
+              disabled={!campaigns.length}
+              sx={{ fontWeight: 800 }}
+            >
+              Purge All Campaigns
+            </Button>
           </Stack>
         }
       />
@@ -821,6 +880,18 @@ export const CampaignsPage: React.FC = () => {
               {campStatus !== 'ALL' && (
                 <Chip label={`Stage: ${STAGES.find((st) => st.key === campStatus)?.label}`} onDelete={() => setCampStatus('ALL')} sx={{ fontWeight: 700 }} />
               )}
+              {selectedCampaignIds.length > 0 && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="small"
+                  startIcon={<DeleteOutline />}
+                  onClick={() => setBulkDeleteCampaignsOpen(true)}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Delete Selected ({selectedCampaignIds.length})
+                </Button>
+              )}
               <Box sx={{ flexGrow: 1 }} />
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Showing {visibleCampaigns.length} of {campaigns.length}</Typography>
             </Stack>
@@ -848,8 +919,20 @@ export const CampaignsPage: React.FC = () => {
                       <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, bgcolor: color }} />
 
                       <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
-                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-                          <Box sx={{ width: 46, height: 46, borderRadius: '14px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${color}, ${color}bb)`, boxShadow: `0 10px 18px -10px ${color}` }}>
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Checkbox
+                            size="small"
+                            checked={selectedCampaignIds.includes(c.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              if (e.target.checked) {
+                                setSelectedCampaignIds((prev) => [...prev, c.id]);
+                              } else {
+                                setSelectedCampaignIds((prev) => prev.filter((id) => id !== c.id));
+                              }
+                            }}
+                          />
+                          <Box sx={{ width: 44, height: 44, borderRadius: '14px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${color}, ${color}bb)`, boxShadow: `0 10px 18px -10px ${color}` }}>
                             {c.paradigm === 'DYNAMIC' ? <FlashOn /> : <CampaignIcon />}
                           </Box>
                           <Box sx={{ minWidth: 0 }}>
@@ -862,7 +945,14 @@ export const CampaignsPage: React.FC = () => {
                             </Stack>
                           </Box>
                         </Stack>
-                        <Chip size="small" label={stageLabel} sx={{ flexShrink: 0, height: 26, borderRadius: '8px', fontWeight: 800, fontSize: '0.7rem', bgcolor: `${color}1f`, color: (t) => (t.palette.mode === 'dark' ? color : (st?.text || color)) }} />
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <Chip size="small" label={stageLabel} sx={{ flexShrink: 0, height: 26, borderRadius: '8px', fontWeight: 800, fontSize: '0.7rem', bgcolor: `${color}1f`, color: (t) => (t.palette.mode === 'dark' ? color : (st?.text || color)) }} />
+                          <Tooltip title="Delete Campaign">
+                            <IconButton size="small" color="error" onClick={() => setDeleteCampaignDialog(c)} aria-label="Delete Campaign">
+                              <DeleteOutline fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       </Stack>
 
                       <Typography color="text.secondary" sx={{ mt: 1.75, fontSize: '0.84rem', lineHeight: 1.55, minHeight: 40, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -1536,6 +1626,37 @@ export const CampaignsPage: React.FC = () => {
           </Stack>
         </DialogActions>
       </Dialog>
+
+      {/* Single Campaign Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={Boolean(deleteCampaignDialog)}
+        title="Permanently Delete Campaign?"
+        message={deleteCampaignDialog ? `Are you sure you want to permanently delete campaign "${deleteCampaignDialog.name}"? All associated targeting parameters and metrics will be erased.` : ''}
+        confirmText="Delete Campaign"
+        onConfirm={handleDeleteCampaign}
+        onClose={() => setDeleteCampaignDialog(null)}
+      />
+
+      {/* Bulk Delete Campaigns Confirm Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteCampaignsOpen}
+        title="Permanently Delete Selected Campaigns?"
+        message={`Are you sure you want to permanently delete ${selectedCampaignIds.length} selected campaigns? This action cannot be undone.`}
+        confirmText={`Delete ${selectedCampaignIds.length} Campaigns`}
+        onConfirm={handleBulkDeleteCampaigns}
+        onClose={() => setBulkDeleteCampaignsOpen(false)}
+      />
+
+      {/* Clear All Campaigns Danger Confirm Dialog */}
+      <DangerConfirmDialog
+        open={clearAllCampaignsOpen}
+        title="Purge All Marketing Campaigns?"
+        message={`Are you sure you want to permanently delete all ${campaigns.length} campaigns across the entire platform? All active broadcasts, drafts, and metrics will be wiped.`}
+        expectedWord="DELETE"
+        confirmText="Purge All Campaigns"
+        onConfirm={handleClearAllCampaigns}
+        onClose={() => setClearAllCampaignsOpen(false)}
+      />
     </Box>
   );
 };

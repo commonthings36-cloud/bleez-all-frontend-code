@@ -7,20 +7,60 @@ import {
   Avatar,
   CircularProgress,
   Button,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CampaignIcon from '@mui/icons-material/Campaign';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { useSnackbar } from 'notistack';
 
 import { PageHeader } from '@/components/PageHeader';
 import { GlassCard } from '@/components/GlassCard';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { apiClient } from '@/services/apiClient';
 
 export const NotificationsPage: React.FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const [dispatches, setDispatches] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [deleteDialogItem, setDeleteDialogItem] = useState<any | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+
+  const handleDeleteItem = async () => {
+    if (!deleteDialogItem) return;
+    try {
+      if (deleteDialogItem.category === 'SMTP_SOS') {
+        await apiClient.delete(`/emergency/panic-events/${deleteDialogItem.id}`);
+      } else {
+        await apiClient.delete(`/intelligence/notifications/${deleteDialogItem.id}`);
+      }
+      enqueueSnackbar('Dispatch record deleted successfully.', { variant: 'success' });
+      setDispatches((prev) => prev.filter((d) => d.id !== deleteDialogItem.id));
+      setDeleteDialogItem(null);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete dispatch log', { variant: 'error' });
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await Promise.allSettled([
+        apiClient.delete('/emergency/panic-events/all'),
+        apiClient.delete('/intelligence/notifications/all'),
+      ]);
+      enqueueSnackbar('All dispatch and notification logs cleared.', { variant: 'success' });
+      setDispatches([]);
+      setClearAllOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear notifications', { variant: 'error' });
+    }
+  };
 
   const fetchNotifications = () => {
     setLoading(true);
@@ -107,14 +147,26 @@ export const NotificationsPage: React.FC = () => {
         subtitle="Real-time SMTP emergency email dispatches and system alert notifications."
         breadcrumbs={[{ label: 'Notification Center' }]}
         action={
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchNotifications}
-            sx={{ fontWeight: 700 }}
-          >
-            Refresh Dispatches
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={fetchNotifications}
+              sx={{ fontWeight: 700 }}
+            >
+              Refresh Dispatches
+            </Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteForeverIcon />}
+              onClick={() => setClearAllOpen(true)}
+              disabled={dispatches.length === 0}
+              sx={{ fontWeight: 700 }}
+            >
+              Purge All Logs
+            </Button>
+          </Stack>
         }
       />
 
@@ -215,30 +267,63 @@ export const NotificationsPage: React.FC = () => {
                       )}
                     </Box>
                   </Stack>
-                  <Chip
-                    label={
-                      item.category === 'SMTP_SOS'
-                        ? `${item.recipientsCount} Email(s) Delivered`
-                        : item.category === 'CAMPAIGN'
-                        ? `CAMPAIGN · ${item.status || 'ACTIVE'}`
-                        : 'SYSTEM ALERT'
-                    }
-                    color={
-                      item.category === 'SMTP_SOS'
-                        ? 'error'
-                        : item.category === 'CAMPAIGN'
-                        ? 'primary'
-                        : 'warning'
-                    }
-                    size="small"
-                    sx={{ fontWeight: 700, flexShrink: 0 }}
-                  />
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
+                    <Chip
+                      label={
+                        item.category === 'SMTP_SOS'
+                          ? `${item.recipientsCount} Email(s) Delivered`
+                          : item.category === 'CAMPAIGN'
+                          ? `CAMPAIGN · ${item.status || 'ACTIVE'}`
+                          : 'SYSTEM ALERT'
+                      }
+                      color={
+                        item.category === 'SMTP_SOS'
+                          ? 'error'
+                          : item.category === 'CAMPAIGN'
+                          ? 'primary'
+                          : 'warning'
+                      }
+                      size="small"
+                      sx={{ fontWeight: 700 }}
+                    />
+                    <Tooltip title="Delete Log">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => setDeleteDialogItem(item)}
+                        aria-label="Delete Log"
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 </Stack>
               </GlassCard>
             ))}
           </Stack>
         )}
       </GlassCard>
+
+      {/* Delete Single Confirm */}
+      <ConfirmDialog
+        open={Boolean(deleteDialogItem)}
+        title="Delete Notification Log?"
+        message={deleteDialogItem ? `Are you sure you want to delete dispatch record "${deleteDialogItem.title}"?` : ''}
+        confirmText="Delete Log"
+        onConfirm={handleDeleteItem}
+        onClose={() => setDeleteDialogItem(null)}
+      />
+
+      {/* Clear All Logs Danger Confirm */}
+      <DangerConfirmDialog
+        open={clearAllOpen}
+        title="Purge All Notification Dispatches?"
+        message={`Are you sure you want to permanently clear all ${dispatches.length} notification and emergency dispatch records across the platform?`}
+        expectedWord="DELETE"
+        confirmText="Purge All Dispatches"
+        onConfirm={handleClearAll}
+        onClose={() => setClearAllOpen(false)}
+      />
     </Box>
   );
 };

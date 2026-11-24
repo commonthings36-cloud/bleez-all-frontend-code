@@ -90,6 +90,21 @@ export const campaignService = {
     return response.data;
   },
 
+  async deleteCampaign(id: string): Promise<{ status: string; message: string }> {
+    const response = await apiClient.delete<{ status: string; message: string }>(`/admin/campaigns/${id}`);
+    return response.data;
+  },
+
+  async bulkDeleteCampaigns(ids: string[]): Promise<{ status: string; deleted_count: number }> {
+    const response = await apiClient.post<{ status: string; deleted_count: number }>('/admin/campaigns/bulk-delete', { ids });
+    return response.data;
+  },
+
+  async clearAllCampaigns(): Promise<{ status: string; cleared_count: number }> {
+    const response = await apiClient.delete<{ status: string; cleared_count: number }>('/admin/campaigns/all');
+    return response.data;
+  },
+
   async submitForApproval(id: string): Promise<Campaign> {
     const response = await apiClient.post<Campaign>(`/admin/campaigns/${id}/submit`);
     return response.data;

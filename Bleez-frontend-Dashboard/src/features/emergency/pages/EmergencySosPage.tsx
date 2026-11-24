@@ -15,6 +15,7 @@ import {
   Tabs,
   Tab,
   keyframes,
+  Tooltip,
 } from '@mui/material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import SearchIcon from '@mui/icons-material/Search';
@@ -31,10 +32,15 @@ import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
 import LocalPoliceIcon from '@mui/icons-material/LocalPolice';
 import LocalHospitalIcon from '@mui/icons-material/LocalHospital';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import { useSnackbar } from 'notistack';
 
 import { PageHeader } from '@/components/PageHeader';
 import { GlassCard } from '@/components/GlassCard';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { apiClient } from '@/services/apiClient';
 import { useAppSelector } from '@/store/hooks';
 import { SosMap, SosPoint } from '../components/SosMap';
@@ -69,9 +75,54 @@ const fadeUp = keyframes`from{opacity:0;transform:translateY(16px)}to{opacity:1;
 const pulse = keyframes`0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}50%{box-shadow:0 0 0 7px rgba(239,68,68,0)}`;
 
 export const EmergencySosPage: React.FC = () => {
+  const { enqueueSnackbar } = useSnackbar();
   const [panicEvents, setPanicEvents] = useState<PanicEventRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<number>(0);
+
+  // Deletion controls state
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [deleteDialogEvent, setDeleteDialogEvent] = useState<PanicEventRecord | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState<boolean>(false);
+  const [clearAllOpen, setClearAllOpen] = useState<boolean>(false);
+
+  const handleDeleteSingle = async () => {
+    if (!deleteDialogEvent) return;
+    try {
+      await apiClient.delete(`/emergency/panic-events/${deleteDialogEvent.id}`);
+      enqueueSnackbar('SOS panic incident permanently deleted.', { variant: 'success' });
+      setPanicEvents((prev) => prev.filter((e) => e.id !== deleteDialogEvent.id));
+      setSelectedRowIds((prev) => prev.filter((id) => id !== deleteDialogEvent.id));
+      setDeleteDialogEvent(null);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete panic event', { variant: 'error' });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedRowIds.length) return;
+    try {
+      await apiClient.post('/emergency/panic-events/bulk-delete', { ids: selectedRowIds });
+      enqueueSnackbar(`Successfully deleted ${selectedRowIds.length} panic records.`, { variant: 'success' });
+      setPanicEvents((prev) => prev.filter((e) => !selectedRowIds.includes(e.id)));
+      setSelectedRowIds([]);
+      setBulkDeleteOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to bulk delete panic records', { variant: 'error' });
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await apiClient.delete('/emergency/panic-events/all');
+      enqueueSnackbar('All SOS panic records permanently cleared.', { variant: 'success' });
+      setPanicEvents([]);
+      setSelectedRowIds([]);
+      setClearAllOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear panic records', { variant: 'error' });
+    }
+  };
 
   // Destination Emergency Numbers State
   const [countryEmergency, setCountryEmergency] = useState<Record<string, any>>({});
@@ -295,8 +346,28 @@ export const EmergencySosPage: React.FC = () => {
       valueGetter: (_v, r) => (r.createdAt && !isNaN(new Date(r.createdAt).getTime()) ? new Date(r.createdAt).toLocaleTimeString() : '—'),
     },
     {
-      field: 'status', headerName: 'Status', width: 150,
+      field: 'status', headerName: 'Status', width: 140,
       renderCell: (p) => <Chip label={p.row.status || 'SOS DISPATCHED'} color="error" size="small" sx={{ fontWeight: 800 }} />,
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 90,
+      sortable: false,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (p) => (
+        <Tooltip title="Delete Incident Record">
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => setDeleteDialogEvent(p.row)}
+            aria-label="Delete Panic Record"
+          >
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
     },
   ];
 
@@ -338,6 +409,16 @@ export const EmergencySosPage: React.FC = () => {
                 </Button>
                 <Button variant="outlined" color="error" startIcon={<RefreshIcon />} onClick={fetchPanicEvents} sx={{ fontWeight: 700 }}>
                   Refresh SOS Stream
+                </Button>
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteForeverIcon />}
+                  onClick={() => setClearAllOpen(true)}
+                  disabled={!panicEvents.length}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Clear All SOS Alerts
                 </Button>
               </>
             ) : (
@@ -460,6 +541,20 @@ export const EmergencySosPage: React.FC = () => {
                 <ToggleButton value="geo" sx={{ px: 2, fontWeight: 700 }}>With GPS</ToggleButton>
                 <ToggleButton value="media" sx={{ px: 2, fontWeight: 700 }}>With media</ToggleButton>
               </ToggleButtonGroup>
+
+              {selectedRowIds.length > 0 && (
+                <Button
+                  variant="contained"
+                  color="error"
+                  size="small"
+                  startIcon={<DeleteOutlineIcon />}
+                  onClick={() => setBulkDeleteOpen(true)}
+                  sx={{ fontWeight: 700 }}
+                >
+                  Delete Selected ({selectedRowIds.length})
+                </Button>
+              )}
+
               <Box sx={{ flexGrow: 1 }} />
               <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Showing {rows.length} of {totalAlerts}</Typography>
             </Stack>
@@ -477,6 +572,9 @@ export const EmergencySosPage: React.FC = () => {
                   loading={loading && panicEvents.length === 0}
                   getRowHeight={() => 'auto'}
                   autoHeight
+                  checkboxSelection
+                  onRowSelectionModelChange={(newModel) => setSelectedRowIds(newModel as string[])}
+                  rowSelectionModel={selectedRowIds}
                   disableRowSelectionOnClick
                   pageSizeOptions={[10, 25, 50]}
                   initialState={{ pagination: { paginationModel: { pageSize: 10 } }, sorting: { sortModel: [{ field: 'createdAt', sort: 'desc' }] } }}
@@ -595,6 +693,37 @@ export const EmergencySosPage: React.FC = () => {
           </GlassCard>
         </Box>
       )}
+
+      {/* Single Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={Boolean(deleteDialogEvent)}
+        title="Delete SOS Panic Incident?"
+        message={deleteDialogEvent ? `Are you sure you want to delete the panic record for traveler ${deleteDialogEvent.senderName || 'Traveler'} (${deleteDialogEvent.senderEmail || 'No email'})? This record will be permanently erased.` : ''}
+        confirmText="Delete Incident"
+        onConfirm={handleDeleteSingle}
+        onClose={() => setDeleteDialogEvent(null)}
+      />
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        title="Delete Selected Panic Incidents?"
+        message={`Are you sure you want to permanently delete all ${selectedRowIds.length} selected SOS distress records? This action cannot be undone.`}
+        confirmText={`Delete ${selectedRowIds.length} Incidents`}
+        onConfirm={handleBulkDelete}
+        onClose={() => setBulkDeleteOpen(false)}
+      />
+
+      {/* Clear All Danger Confirm Dialog */}
+      <DangerConfirmDialog
+        open={clearAllOpen}
+        title="Purge All SOS Panic Records?"
+        message={`Are you sure you want to purge all ${panicEvents.length} recorded SOS panic alerts across the entire platform? All historical distress signals, geotagged evidence, and notification logs will be permanently deleted.`}
+        expectedWord="DELETE"
+        confirmText="Purge All Records"
+        onConfirm={handleClearAll}
+        onClose={() => setClearAllOpen(false)}
+      />
     </Box>
   );
 };

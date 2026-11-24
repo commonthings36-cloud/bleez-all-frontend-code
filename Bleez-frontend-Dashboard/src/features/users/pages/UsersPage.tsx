@@ -19,6 +19,7 @@ import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useSnackbar } from 'notistack';
@@ -26,6 +27,7 @@ import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { GrantOfferDialog } from '@/features/subscriptions/components/GrantOfferDialog';
 import { apiClient } from '@/services/apiClient';
 import { useAppSelector } from '@/store/hooks';
@@ -127,6 +129,11 @@ export const UsersPage: React.FC = () => {
 
   // Permanently delete user confirmation dialog
   const [deleteDialogUser, setDeleteDialogUser] = useState<UserRow | null>(null);
+
+  // Bulk and purge all users state
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkDeleteUsersOpen, setBulkDeleteUsersOpen] = useState(false);
+  const [purgeAllUsersOpen, setPurgeAllUsersOpen] = useState(false);
 
   // Clear history dialog state
   const [clearHistoryUser, setClearHistoryUser] = useState<UserRow | null>(null);
@@ -244,6 +251,31 @@ export const UsersPage: React.FC = () => {
       load(true);
     } catch (e: any) {
       enqueueSnackbar(e?.response?.data?.message || 'Failed to delete user', { variant: 'error' });
+    }
+  };
+
+  const handleBulkDeleteUsers = async () => {
+    if (!selectedUserIds.length) return;
+    try {
+      const res = await apiClient.post('/admin/users/bulk-delete', { userIds: selectedUserIds });
+      enqueueSnackbar(`Successfully deleted ${res.data?.deleted_count ?? selectedUserIds.length} users.`, { variant: 'success' });
+      setSelectedUserIds([]);
+      setBulkDeleteUsersOpen(false);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to bulk delete users', { variant: 'error' });
+    }
+  };
+
+  const handlePurgeAllUsers = async () => {
+    try {
+      const res = await apiClient.delete('/admin/users/all');
+      enqueueSnackbar(`All platform users purged (${res.data?.deleted_count ?? 0} deleted, ${res.data?.preserved_count ?? 0} admins preserved).`, { variant: 'success' });
+      setSelectedUserIds([]);
+      setPurgeAllUsersOpen(false);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to purge users', { variant: 'error' });
     }
   };
 
@@ -413,6 +445,15 @@ export const UsersPage: React.FC = () => {
             </Button>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => load()} disabled={loading}>Refresh</Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteForeverIcon />}
+              onClick={() => setPurgeAllUsersOpen(true)}
+              sx={{ fontWeight: 800 }}
+            >
+              Purge All Users
+            </Button>
           </Stack>
         }
       />
@@ -509,6 +550,20 @@ export const UsersPage: React.FC = () => {
             {providers.map((p) => <MenuItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</MenuItem>)}
           </Select>
           {filtersActive && <Button size="small" startIcon={<FilterAltOffIcon />} onClick={clearFilters}>Clear</Button>}
+
+          {selectedUserIds.length > 0 && (
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkDeleteUsersOpen(true)}
+              sx={{ fontWeight: 700 }}
+            >
+              Delete Selected ({selectedUserIds.length})
+            </Button>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Showing {filtered.length} of {users.length}</Typography>
         </Stack>
@@ -523,6 +578,10 @@ export const UsersPage: React.FC = () => {
               loading={loading}
               rowHeight={60}
               autoHeight
+              checkboxSelection
+              onRowSelectionModelChange={(newModel) => setSelectedUserIds(newModel as string[])}
+              rowSelectionModel={selectedUserIds}
+              isRowSelectable={(params) => !isProtectedAdmin(params.row)}
               disableRowSelectionOnClick
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
@@ -576,6 +635,28 @@ export const UsersPage: React.FC = () => {
         color="error"
         onConfirm={handleDeleteUser}
         onClose={() => setDeleteDialogUser(null)}
+      />
+
+      {/* Bulk Delete Selected Users */}
+      <ConfirmDialog
+        open={bulkDeleteUsersOpen}
+        title="Permanently delete selected users?"
+        message={`Are you sure you want to permanently delete ${selectedUserIds.length} selected user accounts and all their associated trips, bookings, and alerts? Protected administrator accounts will be automatically preserved.`}
+        confirmText={`Delete ${selectedUserIds.length} Users`}
+        color="error"
+        onConfirm={handleBulkDeleteUsers}
+        onClose={() => setBulkDeleteUsersOpen(false)}
+      />
+
+      {/* Purge All Users Danger Confirm */}
+      <DangerConfirmDialog
+        open={purgeAllUsersOpen}
+        title="Purge All Registered Platform Users?"
+        message="Are you sure you want to purge all standard traveler user accounts from the database? All itineraries, bookings, and alerts will be erased. Protected administrator accounts and your current session will be preserved."
+        expectedWord="DELETE"
+        confirmText="Purge All Users"
+        onConfirm={handlePurgeAllUsers}
+        onClose={() => setPurgeAllUsersOpen(false)}
       />
 
       <Dialog
