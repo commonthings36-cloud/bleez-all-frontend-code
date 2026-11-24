@@ -71,9 +71,9 @@ const toRow = (u: any): UserRow => {
     enabled: u.enabled !== false,
     online: !!(u.online ?? u.isOnline),
     authProvider: u.authProvider,
-    city: u.activeLocationCity,
-    region: u.activeLocationRegion,
-    country: u.activeLocationCountry || u.detectedCountry,
+    city: u.activeLocationCity || u.city || (u.profile && u.profile.city),
+    region: u.activeLocationRegion || u.region || (u.profile && u.profile.state),
+    country: u.activeLocationCountry || u.detectedCountry || u.country || (u.profile && u.profile.country),
     lat,
     lng,
     lastSeen: u.lastSeen,
@@ -82,7 +82,14 @@ const toRow = (u: any): UserRow => {
   };
 };
 
-const placeOf = (u: UserRow) => [u.city, u.region, u.country].filter(Boolean).join(', ');
+const placeOf = (u: UserRow) => {
+  const parts = [u.city, u.region, u.country].filter(Boolean);
+  if (parts.length > 0) return parts.join(', ');
+  if (u.lat != null && u.lng != null) {
+    return `${u.lat.toFixed(3)}°, ${u.lng.toFixed(3)}°`;
+  }
+  return '';
+};
 
 const timeAgo = (iso?: string) => {
   if (!iso) return '—';
