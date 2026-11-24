@@ -145,6 +145,25 @@ export const UsersPage: React.FC = () => {
     alerts: true,
   });
 
+  // Location history modal state
+  const [locationHistoryUser, setLocationHistoryUser] = useState<UserRow | null>(null);
+  const [locationHistoryList, setLocationHistoryList] = useState<any[]>([]);
+  const [locationHistoryLoading, setLocationHistoryLoading] = useState(false);
+
+  const fetchLocationHistory = async (user: UserRow) => {
+    setLocationHistoryUser(user);
+    setLocationHistoryLoading(true);
+    try {
+      const res = await apiClient.get(`/admin/users/${user.id}/location-history`);
+      setLocationHistoryList(Array.isArray(res.data?.history) ? res.data.history : []);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to fetch location history', { variant: 'error' });
+      setLocationHistoryList([]);
+    } finally {
+      setLocationHistoryLoading(false);
+    }
+  };
+
   // Action menu anchor state (3-dot menu)
   const [actionMenu, setActionMenu] = useState<{ anchorEl: HTMLElement; user: UserRow } | null>(null);
 
@@ -172,7 +191,7 @@ export const UsersPage: React.FC = () => {
     load();
     const t = setInterval(() => {
       if (!document.hidden) load(true);
-    }, 45000); // keep presence/location fresh
+    }, 25000); // keep presence/location fresh
     return () => clearInterval(t);
   }, [load]);
 
@@ -875,6 +894,26 @@ export const UsersPage: React.FC = () => {
                 <ListItemText primary="Grant Offer / Perks" />
               </MenuItem>
 
+              <MenuItem
+                onClick={() => {
+                  fetchLocationHistory(user);
+                  setActionMenu(null);
+                }}
+                sx={{
+                  borderRadius: '8px',
+                  py: 1,
+                  gap: 1.5,
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  color: 'info.main',
+                }}
+              >
+                <ListItemIcon sx={{ color: 'info.main', minWidth: 'auto' }}>
+                  <MyLocationIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText primary="View Location Timeline" />
+              </MenuItem>
+
               {user.lat != null && (
                 <MenuItem
                   onClick={() => {
@@ -899,6 +938,65 @@ export const UsersPage: React.FC = () => {
           );
         })()}
       </Menu>
+
+      {/* Location History Dialog */}
+      <Dialog
+        open={Boolean(locationHistoryUser)}
+        onClose={() => setLocationHistoryUser(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MyLocationIcon color="primary" />
+          Location Timeline — {locationHistoryUser?.name}
+        </DialogTitle>
+        <DialogContent dividers>
+          {locationHistoryLoading ? (
+            <Typography variant="body2" sx={{ py: 3, textAlign: 'center' }}>Loading timeline…</Typography>
+          ) : locationHistoryList.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+              No location breadcrumbs recorded yet for this traveler.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5} sx={{ py: 1 }}>
+              {locationHistoryList.map((item, idx) => (
+                <Box
+                  key={item.id || idx}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: '10px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid #3B82F6',
+                    bgcolor: 'action.hover',
+                  }}
+                >
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                      📍 {[item.city, item.region, item.country].filter(Boolean).join(', ') || 'GPS Coordinate Ping'}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={item.triggerEvent || 'HEARTBEAT'}
+                      color={item.triggerEvent === 'APP_RESUME' ? 'secondary' : item.triggerEvent === 'LOGIN' ? 'success' : 'default'}
+                      sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    Coordinates: {item.latitude}, {item.longitude}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Captured: {item.recordedAt ? new Date(item.recordedAt).toLocaleString() : '—'} · Platform: {item.platform || 'MOBILE_APP'}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setLocationHistoryUser(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
