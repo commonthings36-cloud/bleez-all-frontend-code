@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent,
+  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle,
   Divider, FormControlLabel, IconButton,
   InputAdornment, ListItemIcon, ListItemText, Menu, MenuItem, Select, Stack, Switch, TextField, ToggleButton,
   ToggleButtonGroup, Tooltip, Typography, keyframes,
@@ -19,6 +19,7 @@ import WifiTetheringIcon from '@mui/icons-material/WifiTethering';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import HistoryToggleOffIcon from '@mui/icons-material/HistoryToggleOff';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useSnackbar } from 'notistack';
@@ -26,6 +27,7 @@ import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { GrantOfferDialog } from '@/features/subscriptions/components/GrantOfferDialog';
 import { apiClient } from '@/services/apiClient';
 import { useAppSelector } from '@/store/hooks';
@@ -69,9 +71,9 @@ const toRow = (u: any): UserRow => {
     enabled: u.enabled !== false,
     online: !!(u.online ?? u.isOnline),
     authProvider: u.authProvider,
-    city: u.activeLocationCity,
-    region: u.activeLocationRegion,
-    country: u.activeLocationCountry || u.detectedCountry,
+    city: u.activeLocationCity || u.city || (u.profile && u.profile.city),
+    region: u.activeLocationRegion || u.region || (u.profile && u.profile.state),
+    country: u.activeLocationCountry || u.detectedCountry || u.country || (u.profile && u.profile.country),
     lat,
     lng,
     lastSeen: u.lastSeen,
@@ -80,7 +82,14 @@ const toRow = (u: any): UserRow => {
   };
 };
 
-const placeOf = (u: UserRow) => [u.city, u.region, u.country].filter(Boolean).join(', ');
+const placeOf = (u: UserRow) => {
+  const parts = [u.city, u.region, u.country].filter(Boolean);
+  if (parts.length > 0) return parts.join(', ');
+  if (u.lat != null && u.lng != null) {
+    return `${u.lat.toFixed(3)}°, ${u.lng.toFixed(3)}°`;
+  }
+  return '';
+};
 
 const timeAgo = (iso?: string) => {
   if (!iso) return '—';
@@ -129,6 +138,11 @@ export const UsersPage: React.FC = () => {
   const [deleteDialogUser, setDeleteDialogUser] = useState<UserRow | null>(null);
   const [deleteTyped, setDeleteTyped] = useState('');
 
+  // Bulk and purge all users state
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkDeleteUsersOpen, setBulkDeleteUsersOpen] = useState(false);
+  const [purgeAllUsersOpen, setPurgeAllUsersOpen] = useState(false);
+
   // Clear history dialog state
   const [clearHistoryUser, setClearHistoryUser] = useState<UserRow | null>(null);
   const [historyScope, setHistoryScope] = useState({
@@ -138,6 +152,25 @@ export const UsersPage: React.FC = () => {
     media: true,
     alerts: true,
   });
+
+  // Location history modal state
+  const [locationHistoryUser, setLocationHistoryUser] = useState<UserRow | null>(null);
+  const [locationHistoryList, setLocationHistoryList] = useState<any[]>([]);
+  const [locationHistoryLoading, setLocationHistoryLoading] = useState(false);
+
+  const fetchLocationHistory = async (user: UserRow) => {
+    setLocationHistoryUser(user);
+    setLocationHistoryLoading(true);
+    try {
+      const res = await apiClient.get(`/admin/users/${user.id}/location-history`);
+      setLocationHistoryList(Array.isArray(res.data?.history) ? res.data.history : []);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to fetch location history', { variant: 'error' });
+      setLocationHistoryList([]);
+    } finally {
+      setLocationHistoryLoading(false);
+    }
+  };
 
   // Action menu anchor state (3-dot menu)
   const [actionMenu, setActionMenu] = useState<{ anchorEl: HTMLElement; user: UserRow } | null>(null);
@@ -166,7 +199,7 @@ export const UsersPage: React.FC = () => {
     load();
     const t = setInterval(() => {
       if (!document.hidden) load(true);
-    }, 45000); // keep presence/location fresh
+    }, 25000); // keep presence/location fresh
     return () => clearInterval(t);
   }, [load]);
 
@@ -246,6 +279,31 @@ export const UsersPage: React.FC = () => {
       load(true);
     } catch (e: any) {
       enqueueSnackbar(e?.response?.data?.message || 'Failed to delete user', { variant: 'error' });
+    }
+  };
+
+  const handleBulkDeleteUsers = async () => {
+    if (!selectedUserIds.length) return;
+    try {
+      const res = await apiClient.post('/admin/users/bulk-delete', { userIds: selectedUserIds });
+      enqueueSnackbar(`Successfully deleted ${res.data?.deleted_count ?? selectedUserIds.length} users.`, { variant: 'success' });
+      setSelectedUserIds([]);
+      setBulkDeleteUsersOpen(false);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to bulk delete users', { variant: 'error' });
+    }
+  };
+
+  const handlePurgeAllUsers = async () => {
+    try {
+      const res = await apiClient.delete('/admin/users/all');
+      enqueueSnackbar(`All platform users purged (${res.data?.deleted_count ?? 0} deleted, ${res.data?.preserved_count ?? 0} admins preserved).`, { variant: 'success' });
+      setSelectedUserIds([]);
+      setPurgeAllUsersOpen(false);
+      load(true);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to purge users', { variant: 'error' });
     }
   };
 
@@ -432,6 +490,15 @@ export const UsersPage: React.FC = () => {
             </Button>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => load()} disabled={loading}>Refresh</Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteForeverIcon />}
+              onClick={() => setPurgeAllUsersOpen(true)}
+              sx={{ fontWeight: 800 }}
+            >
+              Purge All Users
+            </Button>
           </Stack>
         }
       />
@@ -537,6 +604,20 @@ export const UsersPage: React.FC = () => {
             {providers.map((p) => <MenuItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</MenuItem>)}
           </Select>
           {filtersActive && <Button size="small" startIcon={<FilterAltOffIcon />} onClick={clearFilters}>Clear</Button>}
+
+          {selectedUserIds.length > 0 && (
+            <Button
+              variant="contained"
+              color="error"
+              size="small"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkDeleteUsersOpen(true)}
+              sx={{ fontWeight: 700 }}
+            >
+              Delete Selected ({selectedUserIds.length})
+            </Button>
+          )}
+
           <Box sx={{ flexGrow: 1 }} />
           <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>Showing {filtered.length} of {users.length}</Typography>
         </Stack>
@@ -551,6 +632,10 @@ export const UsersPage: React.FC = () => {
               loading={loading}
               rowHeight={60}
               autoHeight
+              checkboxSelection
+              onRowSelectionModelChange={(newModel) => setSelectedUserIds(newModel as string[])}
+              rowSelectionModel={selectedUserIds}
+              isRowSelectable={(params) => !isProtectedAdmin(params.row)}
               disableRowSelectionOnClick
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
@@ -629,6 +714,28 @@ export const UsersPage: React.FC = () => {
           <Button onClick={handleDeleteUser} color="error" variant="contained" disabled={deleteTyped.trim() !== 'DELETE'} startIcon={<DeleteOutlineIcon />}>Delete permanently</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Bulk Delete Selected Users */}
+      <ConfirmDialog
+        open={bulkDeleteUsersOpen}
+        title="Permanently delete selected users?"
+        message={`Are you sure you want to permanently delete ${selectedUserIds.length} selected user accounts and all their associated trips, bookings, and alerts? Protected administrator accounts will be automatically preserved.`}
+        confirmText={`Delete ${selectedUserIds.length} Users`}
+        color="error"
+        onConfirm={handleBulkDeleteUsers}
+        onClose={() => setBulkDeleteUsersOpen(false)}
+      />
+
+      {/* Purge All Users Danger Confirm */}
+      <DangerConfirmDialog
+        open={purgeAllUsersOpen}
+        title="Purge All Registered Platform Users?"
+        message="Are you sure you want to purge all standard traveler user accounts from the database? All itineraries, bookings, and alerts will be erased. Protected administrator accounts and your current session will be preserved."
+        expectedWord="DELETE"
+        confirmText="Purge All Users"
+        onConfirm={handlePurgeAllUsers}
+        onClose={() => setPurgeAllUsersOpen(false)}
+      />
 
       {/* Clear history */}
       <Dialog open={!!clearHistoryUser} onClose={() => setClearHistoryUser(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '18px', overflow: 'hidden' } }}>
@@ -711,6 +818,10 @@ export const UsersPage: React.FC = () => {
               <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}><CardGiftcardIcon fontSize="small" /></ListItemIcon>
               <ListItemText primary="Grant offer / perks" />
             </MenuItem>,
+            <MenuItem key="timeline" onClick={() => { fetchLocationHistory(user); setActionMenu(null); }} sx={item('info.main')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}><MyLocationIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="View location timeline" />
+            </MenuItem>,
             ...(user.lat != null ? [
               <MenuItem key="map" onClick={() => { locate(user); setActionMenu(null); }} sx={item('text.primary')}>
                 <ListItemIcon sx={{ color: 'info.main', minWidth: 'auto' }}><MyLocationIcon fontSize="small" /></ListItemIcon>
@@ -734,6 +845,65 @@ export const UsersPage: React.FC = () => {
           ];
         })()}
       </Menu>
+
+      {/* Location History Dialog */}
+      <Dialog
+        open={Boolean(locationHistoryUser)}
+        onClose={() => setLocationHistoryUser(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <MyLocationIcon color="primary" />
+          Location Timeline — {locationHistoryUser?.name}
+        </DialogTitle>
+        <DialogContent dividers>
+          {locationHistoryLoading ? (
+            <Typography variant="body2" sx={{ py: 3, textAlign: 'center' }}>Loading timeline…</Typography>
+          ) : locationHistoryList.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+              No location breadcrumbs recorded yet for this traveler.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5} sx={{ py: 1 }}>
+              {locationHistoryList.map((item, idx) => (
+                <Box
+                  key={item.id || idx}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: '10px',
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderLeft: '4px solid #3B82F6',
+                    bgcolor: 'action.hover',
+                  }}
+                >
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                      📍 {[item.city, item.region, item.country].filter(Boolean).join(', ') || 'GPS Coordinate Ping'}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={item.triggerEvent || 'HEARTBEAT'}
+                      color={item.triggerEvent === 'APP_RESUME' ? 'secondary' : item.triggerEvent === 'LOGIN' ? 'success' : 'default'}
+                      sx={{ fontWeight: 700, fontSize: '0.7rem' }}
+                    />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    Coordinates: {item.latitude}, {item.longitude}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    Captured: {item.recordedAt ? new Date(item.recordedAt).toLocaleString() : '—'} · Platform: {item.platform || 'MOBILE_APP'}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setLocationHistoryUser(null)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

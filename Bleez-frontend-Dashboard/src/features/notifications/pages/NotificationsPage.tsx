@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Box, Button, Chip, CircularProgress, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup,
-  Typography, keyframes,
+  Box, Button, Chip, CircularProgress, IconButton, InputAdornment, Stack, TextField, ToggleButton, ToggleButtonGroup,
+  Tooltip, Typography, keyframes,
 } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
@@ -12,11 +12,16 @@ import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useNavigate } from 'react-router-dom';
+import { useSnackbar } from 'notistack';
 
 import { PageHeader } from '@/components/PageHeader';
 import { GlassCard } from '@/components/GlassCard';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { apiClient } from '@/services/apiClient';
 
 type Kind = 'CAMPAIGN' | 'SMTP_SOS' | 'ADVISORY';
@@ -70,6 +75,39 @@ export const NotificationsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>('ALL');
   const [query, setQuery] = useState('');
+  const { enqueueSnackbar } = useSnackbar();
+  const [deleteDialogItem, setDeleteDialogItem] = useState<Dispatch | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+
+  const handleDeleteItem = async () => {
+    if (!deleteDialogItem) return;
+    try {
+      if (deleteDialogItem.kind === 'SMTP_SOS') {
+        await apiClient.delete(`/emergency/panic-events/${deleteDialogItem.id}`);
+      } else {
+        await apiClient.delete(`/intelligence/notifications/${deleteDialogItem.id}`);
+      }
+      enqueueSnackbar('Dispatch record deleted successfully.', { variant: 'success' });
+      setItems((prev) => prev.filter((d) => !(d.id === deleteDialogItem.id && d.kind === deleteDialogItem.kind)));
+      setDeleteDialogItem(null);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete dispatch log', { variant: 'error' });
+    }
+  };
+
+  const handleClearAll = async () => {
+    try {
+      await Promise.allSettled([
+        apiClient.delete('/emergency/panic-events/all'),
+        apiClient.delete('/intelligence/notifications/all'),
+      ]);
+      enqueueSnackbar('All dispatch and notification logs cleared.', { variant: 'success' });
+      setItems([]);
+      setClearAllOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear notifications', { variant: 'error' });
+    }
+  };
 
   const load = useCallback(() => {
     setLoading(true);
@@ -167,6 +205,7 @@ export const NotificationsPage: React.FC = () => {
           <Stack direction="row" spacing={1.5}>
             <Button variant="outlined" startIcon={<CampaignIcon />} onClick={() => navigate('/campaigns')} sx={{ fontWeight: 700 }}>Open campaigns</Button>
             <Button variant="outlined" startIcon={<RefreshIcon />} onClick={load} disabled={loading} sx={{ fontWeight: 700 }}>Refresh</Button>
+            <Button variant="contained" color="error" startIcon={<DeleteForeverIcon />} onClick={() => setClearAllOpen(true)} disabled={items.length === 0} sx={{ fontWeight: 700 }}>Purge All Logs</Button>
           </Stack>
         }
       />
@@ -253,6 +292,16 @@ export const NotificationsPage: React.FC = () => {
                               label={n.kind === 'CAMPAIGN' ? `${k.label}${n.status ? ` · ${n.status}` : ''}` : k.label}
                               sx={{ flexShrink: 0, height: 24, fontWeight: 800, fontSize: '0.68rem', color: k.color, bgcolor: `${k.color}1f`, border: `1px solid ${k.color}55` }}
                             />
+                            <Tooltip title="Delete Log">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                aria-label="Delete Log"
+                                onClick={(e) => { e.stopPropagation(); setDeleteDialogItem(n); }}
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Stack>
                           {n.message && (
                             <Typography variant="body2" sx={{ mt: 0.75, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.message}</Typography>
@@ -283,6 +332,27 @@ export const NotificationsPage: React.FC = () => {
           </Stack>
         )}
       </GlassCard>
+
+      {/* Delete Single Confirm */}
+      <ConfirmDialog
+        open={Boolean(deleteDialogItem)}
+        title="Delete Notification Log?"
+        message={deleteDialogItem ? `Are you sure you want to delete dispatch record "${deleteDialogItem.title}"?` : ''}
+        confirmText="Delete Log"
+        onConfirm={handleDeleteItem}
+        onClose={() => setDeleteDialogItem(null)}
+      />
+
+      {/* Clear All Logs Danger Confirm */}
+      <DangerConfirmDialog
+        open={clearAllOpen}
+        title="Purge All Notification Dispatches?"
+        message={`Are you sure you want to permanently clear all ${items.length} notification and emergency dispatch records across the platform?`}
+        expectedWord="DELETE"
+        confirmText="Purge All Dispatches"
+        onConfirm={handleClearAll}
+        onClose={() => setClearAllOpen(false)}
+      />
     </Box>
   );
 };

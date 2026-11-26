@@ -15,10 +15,14 @@ import PaymentsIcon from '@mui/icons-material/Payments';
 import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useSnackbar } from 'notistack';
 import { GlassCard } from '@/components/GlassCard';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DangerConfirmDialog } from '@/components/DangerConfirmDialog';
 import { apiClient } from '@/services/apiClient';
 
 /**
@@ -148,6 +152,74 @@ export const TravelBookingsPage: React.FC = () => {
     restaurant: { rows: [], error: null },
   });
 
+  // Deletion controls state
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [deleteBookingDialog, setDeleteBookingDialog] = useState<TravelBooking | null>(null);
+  const [bulkDeleteBookingsOpen, setBulkDeleteBookingsOpen] = useState(false);
+  const [clearAllBookingsOpen, setClearAllBookingsOpen] = useState(false);
+
+  const handleDeleteBooking = async () => {
+    if (!deleteBookingDialog) return;
+    try {
+      await apiClient.delete(`/bookings/${deleteBookingDialog.id}`);
+      enqueueSnackbar(`Booking #${deleteBookingDialog.reference.slice(0, 8)} deleted permanently.`, { variant: 'success' });
+      setData((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((k) => {
+          const kind = k as Kind;
+          next[kind] = {
+            ...next[kind],
+            rows: next[kind].rows.filter((r) => r.id !== deleteBookingDialog.id),
+          };
+        });
+        return next;
+      });
+      setSelectedBookingIds((prev) => prev.filter((id) => id !== deleteBookingDialog.id));
+      setDeleteBookingDialog(null);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to delete booking', { variant: 'error' });
+    }
+  };
+
+  const handleBulkDeleteBookings = async () => {
+    if (!selectedBookingIds.length) return;
+    try {
+      const res = await apiClient.post('/bookings/bulk-delete', { ids: selectedBookingIds });
+      enqueueSnackbar(`Successfully deleted ${res.data?.deleted_count ?? selectedBookingIds.length} bookings.`, { variant: 'success' });
+      setData((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((k) => {
+          const kind = k as Kind;
+          next[kind] = {
+            ...next[kind],
+            rows: next[kind].rows.filter((r) => !selectedBookingIds.includes(r.id)),
+          };
+        });
+        return next;
+      });
+      setSelectedBookingIds([]);
+      setBulkDeleteBookingsOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to bulk delete bookings', { variant: 'error' });
+    }
+  };
+
+  const handleClearAllBookings = async () => {
+    try {
+      const res = await apiClient.delete('/bookings/all');
+      enqueueSnackbar(`All ${res.data?.cleared_count ?? 0} bookings permanently deleted.`, { variant: 'success' });
+      setData({
+        flight: { rows: [], error: null },
+        hotel: { rows: [], error: null },
+        restaurant: { rows: [], error: null },
+      });
+      setSelectedBookingIds([]);
+      setClearAllBookingsOpen(false);
+    } catch (e: any) {
+      enqueueSnackbar(e?.response?.data?.message || 'Failed to clear all bookings', { variant: 'error' });
+    }
+  };
+
   const load = useCallback(async () => {
     setLoading(true);
     const results = await Promise.allSettled(KIND_ORDER.map((k) => apiClient.get(KINDS[k].endpoint)));
@@ -263,6 +335,26 @@ export const TravelBookingsPage: React.FC = () => {
       field: 'createdAt', headerName: 'Booked on', width: 130,
       renderCell: (p) => <Typography noWrap sx={{ fontSize: '0.84rem', lineHeight: 1.4 }}>{fmtDate(p.row.createdAt) || '—'}</Typography>,
     },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 90,
+      sortable: false,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (p) => (
+        <Tooltip title="Delete Booking Record">
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => setDeleteBookingDialog(p.row)}
+            aria-label="Delete Booking"
+          >
+            <DeleteOutlineIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
   ];
 
   const totalAll = KIND_ORDER.reduce((n, k) => n + data[k].rows.length, 0);
@@ -278,6 +370,16 @@ export const TravelBookingsPage: React.FC = () => {
           <Stack direction="row" spacing={1}>
             <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
             <Button variant="contained" startIcon={<RefreshIcon />} onClick={load} disabled={loading}>Refresh</Button>
+            <Button
+              variant="contained"
+              color="error"
+              startIcon={<DeleteForeverIcon />}
+              onClick={() => setClearAllBookingsOpen(true)}
+              disabled={totalAll === 0}
+              sx={{ fontWeight: 800 }}
+            >
+              Purge All Bookings
+            </Button>
           </Stack>
         }
       />
@@ -332,14 +434,28 @@ export const TravelBookingsPage: React.FC = () => {
               <Tab key={k} value={k} icon={React.cloneElement(KINDS[k].icon, { fontSize: 'small' })} iconPosition="start" label={KINDS[k].label} sx={{ minHeight: 44, fontWeight: 700, textTransform: 'none' }} />
             ))}
           </Tabs>
-          <TextField
-            size="small"
-            placeholder={`Search ${meta.label.toLowerCase()}…`}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
-            sx={{ minWidth: { md: 280 } }}
-          />
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            {selectedBookingIds.length > 0 && (
+              <Button
+                variant="contained"
+                color="error"
+                size="small"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setBulkDeleteBookingsOpen(true)}
+                sx={{ fontWeight: 700 }}
+              >
+                Delete Selected ({selectedBookingIds.length})
+              </Button>
+            )}
+            <TextField
+              size="small"
+              placeholder={`Search ${meta.label.toLowerCase()}…`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+              sx={{ minWidth: { md: 280 } }}
+            />
+          </Stack>
         </Stack>
 
         <Box sx={{ p: 2.5, pt: 1.5 }}>
@@ -364,6 +480,9 @@ export const TravelBookingsPage: React.FC = () => {
               rows={filtered}
               columns={columns}
               loading={loading}
+              checkboxSelection
+              onRowSelectionModelChange={(newModel) => setSelectedBookingIds(newModel as string[])}
+              rowSelectionModel={selectedBookingIds}
               disableRowSelectionOnClick
               rowHeight={64}
               pageSizeOptions={[10, 25, 50]}
@@ -374,6 +493,37 @@ export const TravelBookingsPage: React.FC = () => {
           )}
         </Box>
       </GlassCard>
+
+      {/* Single Booking Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={Boolean(deleteBookingDialog)}
+        title="Permanently Delete Booking?"
+        message={deleteBookingDialog ? `Are you sure you want to permanently delete booking reference ${deleteBookingDialog.reference} for ${deleteBookingDialog.travelerName}? This record will be erased.` : ''}
+        confirmText="Delete Booking"
+        onConfirm={handleDeleteBooking}
+        onClose={() => setDeleteBookingDialog(null)}
+      />
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={bulkDeleteBookingsOpen}
+        title="Permanently Delete Selected Bookings?"
+        message={`Are you sure you want to permanently delete ${selectedBookingIds.length} selected booking records? This action cannot be undone.`}
+        confirmText={`Delete ${selectedBookingIds.length} Bookings`}
+        onConfirm={handleBulkDeleteBookings}
+        onClose={() => setBulkDeleteBookingsOpen(false)}
+      />
+
+      {/* Clear All Bookings Danger Confirm Dialog */}
+      <DangerConfirmDialog
+        open={clearAllBookingsOpen}
+        title="Purge All Travel Bookings?"
+        message="Are you sure you want to permanently delete all flight, hotel, and restaurant booking records across the platform?"
+        expectedWord="DELETE"
+        confirmText="Purge All Bookings"
+        onConfirm={handleClearAllBookings}
+        onClose={() => setClearAllBookingsOpen(false)}
+      />
     </Box>
   );
 };
