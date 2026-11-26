@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Avatar, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent,
-  DialogContentText, DialogTitle, FormControlLabel, FormGroup, IconButton,
+  Alert, Avatar, Box, Button, Chip, Dialog, DialogActions, DialogContent,
+  Divider, FormControlLabel, IconButton,
   InputAdornment, ListItemIcon, ListItemText, Menu, MenuItem, Select, Stack, Switch, TextField, ToggleButton,
   ToggleButtonGroup, Tooltip, Typography, keyframes,
 } from '@mui/material';
@@ -127,6 +127,7 @@ export const UsersPage: React.FC = () => {
 
   // Permanently delete user confirmation dialog
   const [deleteDialogUser, setDeleteDialogUser] = useState<UserRow | null>(null);
+  const [deleteTyped, setDeleteTyped] = useState('');
 
   // Clear history dialog state
   const [clearHistoryUser, setClearHistoryUser] = useState<UserRow | null>(null);
@@ -241,6 +242,7 @@ export const UsersPage: React.FC = () => {
       await apiClient.delete(`/admin/users/${deleteDialogUser.id}`);
       enqueueSnackbar(`${deleteDialogUser.name} and all data deleted permanently.`, { variant: 'success' });
       setDeleteDialogUser(null);
+      setDeleteTyped('');
       load(true);
     } catch (e: any) {
       enqueueSnackbar(e?.response?.data?.message || 'Failed to delete user', { variant: 'error' });
@@ -292,30 +294,47 @@ export const UsersPage: React.FC = () => {
 
   const columns: GridColDef<UserRow>[] = [
     {
-      field: 'name', headerName: 'Name', flex: 1, minWidth: 220,
+      field: 'name', headerName: 'User', flex: 1, minWidth: 230,
       renderCell: (p) => (
-        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ height: '100%' }}>
-          <Avatar src={p.row.picture} sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: '0.95rem' }}>{p.row.name.charAt(0).toUpperCase()}</Avatar>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }} noWrap>{p.row.name}</Typography>
+        <Stack direction="row" alignItems="center" spacing={1.5} sx={{ height: '100%', minWidth: 0 }}>
+          <Box sx={{ position: 'relative', flexShrink: 0 }}>
+            <Avatar src={p.row.picture} sx={{ width: 38, height: 38, bgcolor: 'primary.main', fontSize: '0.95rem', fontWeight: 800, opacity: p.row.enabled ? 1 : 0.55 }}>{p.row.name.charAt(0).toUpperCase()}</Avatar>
+            <Box sx={{ position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: '50%', border: '2px solid', borderColor: 'background.paper', bgcolor: p.row.online ? '#10B981' : '#94A3B8' }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.9rem', lineHeight: 1.25 }}>{p.row.name}</Typography>
+            <Typography noWrap color="text.secondary" sx={{ fontSize: '0.74rem', lineHeight: 1.25 }}>
+              {p.row.enabled ? (p.row.online ? 'Active now' : (p.row.lastSeen || p.row.lastLogin) ? `Seen ${timeAgo(p.row.lastSeen || p.row.lastLogin)}` : 'Never signed in') : 'Account deactivated'}
+            </Typography>
+          </Box>
         </Stack>
       ),
     },
     { field: 'email', headerName: 'Email', flex: 1, minWidth: 230 },
     { field: 'phone', headerName: 'Phone', width: 150, valueFormatter: (v: string) => v || '—' },
     {
-      field: 'role', headerName: 'Role', width: 130,
-      renderCell: (p) => (
-        <Select
-          size="small" variant="standard" value={p.row.role} disableUnderline
-          disabled={p.row.email === currentEmail}
-          onChange={(e) => setPending({ user: p.row, role: e.target.value as BackendRole })}
-          sx={{ fontWeight: 700, fontSize: '0.85rem', color: p.row.role === 'ADMIN' ? 'warning.main' : 'text.primary' }}
-          inputProps={{ 'aria-label': `Role for ${p.row.name}` }}
-        >
-          <MenuItem value="USER">USER</MenuItem>
-          <MenuItem value="ADMIN">ADMIN</MenuItem>
-        </Select>
-      ),
+      field: 'role', headerName: 'Role', width: 140,
+      renderCell: (p) => {
+        const admin = p.row.role === 'ADMIN';
+        return (
+          <Select
+            size="small" variant="standard" value={p.row.role} disableUnderline
+            disabled={p.row.email === currentEmail}
+            onChange={(e) => setPending({ user: p.row, role: e.target.value as BackendRole })}
+            sx={{
+              alignSelf: 'center', height: 28, px: 1.25, borderRadius: '999px', fontWeight: 800, fontSize: '0.75rem', letterSpacing: '0.04em',
+              color: admin ? '#B45309' : 'text.primary',
+              bgcolor: admin ? 'rgba(245,158,11,.16)' : 'action.hover',
+              border: '1px solid', borderColor: admin ? 'rgba(245,158,11,.45)' : 'divider',
+              '& .MuiSelect-select': { py: 0, display: 'flex', alignItems: 'center', height: '26px !important', minHeight: 0 },
+            }}
+            inputProps={{ 'aria-label': `Role for ${p.row.name}` }}
+          >
+            <MenuItem value="USER">USER</MenuItem>
+            <MenuItem value="ADMIN">ADMIN</MenuItem>
+          </Select>
+        );
+      },
     },
     {
       field: 'enabled', headerName: 'Account Status', width: 175,
@@ -346,6 +365,25 @@ export const UsersPage: React.FC = () => {
       },
     },
     {
+      field: 'actions', headerName: 'Actions', width: 80, sortable: false, filterable: false, align: 'center', headerAlign: 'center',
+      renderCell: (p) => (
+        <IconButton
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            setActionMenu({ anchorEl: e.currentTarget, user: p.row });
+          }}
+          aria-label={`Actions for ${p.row.name}`}
+          sx={{
+            color: 'text.secondary',
+            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      ),
+    },
+    {
       field: 'online', headerName: 'Presence', width: 130,
       renderCell: (p) => (
         <Stack direction="row" spacing={1} alignItems="center" sx={{ height: '100%' }}>
@@ -366,25 +404,6 @@ export const UsersPage: React.FC = () => {
     { field: 'lastSeen', headerName: 'Last seen', width: 130, valueGetter: (_v, r) => (r.online ? 'Now' : timeAgo(r.lastSeen || r.lastLogin)) },
     { field: 'lastLogin', headerName: 'Last login', width: 180, valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '—') },
     { field: 'createdAt', headerName: 'Joined', width: 120, valueFormatter: (v: string) => (v ? new Date(v).toLocaleDateString() : '—') },
-    {
-      field: 'actions', headerName: 'Actions', width: 80, sortable: false, filterable: false, align: 'center', headerAlign: 'center',
-      renderCell: (p) => (
-        <IconButton
-          size="small"
-          onClick={(e) => {
-            e.stopPropagation();
-            setActionMenu({ anchorEl: e.currentTarget, user: p.row });
-          }}
-          aria-label={`Actions for ${p.row.name}`}
-          sx={{
-            color: 'text.secondary',
-            '&:hover': { color: 'text.primary', bgcolor: 'action.hover' },
-          }}
-        >
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      ),
-    },
   ];
 
   const kpis = [
@@ -420,27 +439,36 @@ export const UsersPage: React.FC = () => {
 
       {/* KPI cards double as quick filters */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, mb: 3 }}>
-        {kpis.map((k, i) => (
-          <GlassCard
-            key={k.label}
-            onClick={() => { clearFilters(); if (k.label !== 'Total users') k.apply(); }}
-            sx={{
-              p: 2, cursor: 'pointer', position: 'relative', overflow: 'hidden',
-              animation: `${fadeUp} .5s ${i * 0.07}s ease-out both`,
-              borderColor: k.on && k.label !== 'Total users' ? k.color : undefined,
-              boxShadow: k.on && k.label !== 'Total users' ? `0 10px 26px -10px ${k.color}88` : undefined,
-              '&:hover': { transform: 'translateY(-4px)', borderColor: k.color },
-            }}
-          >
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
+        {kpis.map((k, i) => {
+          const selected = k.on && k.label !== 'Total users';
+          const pct = counts.total ? Math.round((k.value / counts.total) * 100) : 0;
+          return (
+            <GlassCard
+              key={k.label}
+              onClick={() => { clearFilters(); if (k.label !== 'Total users') k.apply(); }}
+              sx={{
+                p: 2, height: 122, cursor: 'pointer', position: 'relative', overflow: 'hidden',
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                animation: `${fadeUp} .5s ${i * 0.07}s ease-out both`,
+                borderColor: selected ? k.color : undefined,
+                boxShadow: selected ? `0 10px 26px -10px ${k.color}88` : undefined,
+                '&::before': { content: '""', position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: `linear-gradient(180deg, ${k.color}, ${k.color}55)` },
+                '&:hover': { transform: 'translateY(-4px)', borderColor: k.color },
+              }}
+            >
+              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.3, pt: 0.5 }}>{k.label}</Typography>
+                <Box sx={{ width: 38, height: 38, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${k.color}, ${k.color}bb)`, boxShadow: `0 8px 18px -8px ${k.color}` }}>{k.icon}</Box>
+              </Stack>
               <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</Typography>
-                <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.02em' }}>{loading ? '…' : k.value.toLocaleString()}</Typography>
+                <Typography sx={{ fontWeight: 800, letterSpacing: '-0.02em', fontSize: '1.9rem', lineHeight: 1.1 }}>{loading ? '…' : k.value.toLocaleString()}</Typography>
+                <Box sx={{ height: 4, borderRadius: 2, bgcolor: 'action.hover', mt: 0.75, overflow: 'hidden' }}>
+                  <Box sx={{ height: '100%', width: `${loading ? 0 : pct}%`, borderRadius: 2, background: k.color, transition: 'width .8s ease' }} />
+                </Box>
               </Box>
-              <Box sx={{ width: 44, height: 44, borderRadius: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: `linear-gradient(135deg, ${k.color}, ${k.color}bb)`, boxShadow: `0 8px 18px -8px ${k.color}` }}>{k.icon}</Box>
-            </Stack>
-          </GlassCard>
-        ))}
+            </GlassCard>
+          );
+        })}
       </Box>
 
       {/* Live map */}
@@ -526,7 +554,7 @@ export const UsersPage: React.FC = () => {
               disableRowSelectionOnClick
               pageSizeOptions={[10, 25, 50]}
               initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              sx={{ border: 0, minWidth: 1100, '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 800 }, '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' } }}
+              sx={{ border: 0, minWidth: 1100, '& .MuiDataGrid-columnHeaders': { bgcolor: 'action.hover', borderRadius: '10px' }, '& .MuiDataGrid-columnHeaderTitle': { fontWeight: 800, fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em' }, '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center', borderColor: 'divider' }, '& .MuiDataGrid-row': { transition: 'background .15s' }, '& .MuiDataGrid-row:hover': { bgcolor: 'action.hover' } }}
             />
           </Box>
         )}
@@ -568,254 +596,142 @@ export const UsersPage: React.FC = () => {
         onClose={() => setStatusDialogUser(null)}
       />
 
-      <ConfirmDialog
-        open={!!deleteDialogUser}
-        title="Permanently delete user account?"
-        message={deleteDialogUser ? `Are you sure you want to permanently delete ${deleteDialogUser.name} (${deleteDialogUser.email})? All associated trips, flight bookings, media albums, intelligence alerts, and behavior logs will be permanently erased. THIS ACTION CANNOT BE UNDONE.` : ''}
-        confirmText="Delete Permanently"
-        color="error"
-        onConfirm={handleDeleteUser}
-        onClose={() => setDeleteDialogUser(null)}
-      />
-
-      <Dialog
-        open={!!clearHistoryUser}
-        onClose={() => setClearHistoryUser(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 800 }}>Clear User History</DialogTitle>
-        <DialogContent>
-          <DialogContentText sx={{ mb: 2 }}>
-            Select the history data you want to wipe for <strong>{clearHistoryUser?.name}</strong>. The user account will remain active.
-          </DialogContentText>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={historyScope.all}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setHistoryScope({
-                      all: checked,
-                      trips: checked,
-                      bookings: checked,
-                      media: checked,
-                      alerts: checked,
-                    });
-                  }}
-                  color="warning"
-                />
-              }
-              label={<strong>Wipe All History (Complete reset)</strong>}
-            />
-            <Box sx={{ pl: 3 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={historyScope.trips}
-                    onChange={(e) => {
-                      const next = { ...historyScope, trips: e.target.checked };
-                      next.all = next.trips && next.bookings && next.media && next.alerts;
-                      setHistoryScope(next);
-                    }}
-                    color="warning"
-                    size="small"
-                  />
-                }
-                label="Trips & Itineraries (including expenses)"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={historyScope.bookings}
-                    onChange={(e) => {
-                      const next = { ...historyScope, bookings: e.target.checked };
-                      next.all = next.trips && next.bookings && next.media && next.alerts;
-                      setHistoryScope(next);
-                    }}
-                    color="warning"
-                    size="small"
-                  />
-                }
-                label="Flight Bookings"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={historyScope.media}
-                    onChange={(e) => {
-                      const next = { ...historyScope, media: e.target.checked };
-                      next.all = next.trips && next.bookings && next.media && next.alerts;
-                      setHistoryScope(next);
-                    }}
-                    color="warning"
-                    size="small"
-                  />
-                }
-                label="Media & Photo Albums"
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={historyScope.alerts}
-                    onChange={(e) => {
-                      const next = { ...historyScope, alerts: e.target.checked };
-                      next.all = next.trips && next.bookings && next.media && next.alerts;
-                      setHistoryScope(next);
-                    }}
-                    color="warning"
-                    size="small"
-                  />
-                }
-                label="Alerts, Intelligence Logs & Telemetry"
-              />
-            </Box>
-          </FormGroup>
+      {/* Delete permanently — must type DELETE */}
+      <Dialog open={!!deleteDialogUser} onClose={() => { setDeleteDialogUser(null); setDeleteTyped(''); }} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '18px', overflow: 'hidden' } }}>
+        <Box sx={{ p: 2.5, color: '#fff', background: 'linear-gradient(135deg,#DC2626,#F97316)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><DeleteOutlineIcon /></Box>
+          <Box>
+            <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.2 }}>Delete user permanently</Typography>
+            <Typography sx={{ fontSize: '0.8rem', opacity: 0.9 }}>This cannot be undone</Typography>
+          </Box>
+        </Box>
+        <DialogContent sx={{ pt: 2.5 }}>
+          {deleteDialogUser && (
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 1.5, mb: 2, borderRadius: '12px', border: '1px solid', borderColor: 'divider' }}>
+              <Avatar src={deleteDialogUser.picture} sx={{ bgcolor: 'primary.main', fontWeight: 800 }}>{deleteDialogUser.name.charAt(0).toUpperCase()}</Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ fontWeight: 800 }}>{deleteDialogUser.name}</Typography>
+                <Typography noWrap variant="body2" color="text.secondary">{deleteDialogUser.email}</Typography>
+              </Box>
+            </Stack>
+          )}
+          <Typography variant="body2" sx={{ mb: 1 }}>Everything below will be erased for this user:</Typography>
+          <Box component="ul" sx={{ m: 0, mb: 2, pl: 2.5, color: 'text.secondary', fontSize: '0.85rem', lineHeight: 1.8 }}>
+            <li>Trips, itineraries and expenses</li><li>Flight bookings</li><li>Media albums</li><li>Intelligence alerts and behaviour logs</li>
+          </Box>
+          <TextField
+            fullWidth size="small" autoFocus value={deleteTyped} onChange={(e) => setDeleteTyped(e.target.value)}
+            label="Type DELETE to confirm" placeholder="DELETE" color="error"
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setClearHistoryUser(null)} variant="outlined" color="inherit">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleClearHistory}
-            variant="contained"
-            color="warning"
-            disabled={!historyScope.trips && !historyScope.bookings && !historyScope.media && !historyScope.alerts && !historyScope.all}
-          >
-            Clear Selected History
-          </Button>
+          <Button onClick={() => { setDeleteDialogUser(null); setDeleteTyped(''); }} color="inherit" variant="outlined">Cancel</Button>
+          <Button onClick={handleDeleteUser} color="error" variant="contained" disabled={deleteTyped.trim() !== 'DELETE'} startIcon={<DeleteOutlineIcon />}>Delete permanently</Button>
         </DialogActions>
       </Dialog>
 
-      {/* 3-Dot Row Action Menu */}
+      {/* Clear history */}
+      <Dialog open={!!clearHistoryUser} onClose={() => setClearHistoryUser(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '18px', overflow: 'hidden' } }}>
+        <Box sx={{ p: 2.5, color: '#fff', background: 'linear-gradient(135deg,#D97706,#F59E0B)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: 'rgba(255,255,255,.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><HistoryToggleOffIcon /></Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1.2 }}>Clear user history</Typography>
+            <Typography noWrap sx={{ fontSize: '0.8rem', opacity: 0.92 }}>{clearHistoryUser?.name} · account stays active</Typography>
+          </Box>
+        </Box>
+        <DialogContent sx={{ pt: 2.5 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>Choose what to wipe. Tap a tile to include or exclude it.</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+            {([
+              ['trips', 'Trips', 'Itineraries & expenses'],
+              ['bookings', 'Bookings', 'Flight bookings'],
+              ['media', 'Media', 'Photo albums'],
+              ['alerts', 'Alerts', 'Intelligence & telemetry'],
+            ] as const).map(([key, title, sub]) => {
+              const on = historyScope[key];
+              return (
+                <Box
+                  key={key}
+                  onClick={() => {
+                    const next = { ...historyScope, [key]: !on };
+                    next.all = next.trips && next.bookings && next.media && next.alerts;
+                    setHistoryScope(next);
+                  }}
+                  sx={{
+                    p: 1.5, borderRadius: '12px', cursor: 'pointer', border: '1.5px solid', transition: 'all .15s',
+                    borderColor: on ? '#F59E0B' : 'divider', bgcolor: on ? 'rgba(245,158,11,.12)' : 'transparent',
+                    '&:hover': { borderColor: '#F59E0B' },
+                  }}
+                >
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>{title}</Typography>
+                    {on && <CheckCircleIcon sx={{ fontSize: 18, color: '#D97706' }} />}
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">{sub}</Typography>
+                </Box>
+              );
+            })}
+          </Box>
+          <Button
+            size="small" sx={{ mt: 1.5, fontWeight: 700 }}
+            onClick={() => { const v = !historyScope.all; setHistoryScope({ all: v, trips: v, bookings: v, media: v, alerts: v }); }}
+          >
+            {historyScope.all ? 'Deselect all' : 'Select all (complete reset)'}
+          </Button>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setClearHistoryUser(null)} variant="outlined" color="inherit">Cancel</Button>
+          <Button onClick={handleClearHistory} variant="contained" color="warning" disabled={!historyScope.trips && !historyScope.bookings && !historyScope.media && !historyScope.alerts && !historyScope.all}>Clear selected</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Row action menu */}
       <Menu
         anchorEl={actionMenu?.anchorEl}
         open={Boolean(actionMenu)}
         onClose={() => setActionMenu(null)}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-        PaperProps={{
-          sx: {
-            minWidth: 220,
-            borderRadius: '12px',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-            border: '1px solid',
-            borderColor: 'divider',
-            p: 0.5,
-          },
-        }}
+        PaperProps={{ sx: { minWidth: 250, borderRadius: '14px', boxShadow: '0 14px 36px rgba(0,0,0,0.28)', border: '1px solid', borderColor: 'divider', p: 0.5 } }}
       >
         {actionMenu && (() => {
           const user = actionMenu.user;
           const isProtected = isProtectedAdmin(user);
-          return (
-            <>
-              <MenuItem
-                disabled={isProtected}
-                onClick={() => {
-                  setStatusDialogUser(user);
-                  setActionMenu(null);
-                }}
-                sx={{
-                  borderRadius: '8px',
-                  py: 1,
-                  gap: 1.5,
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  color: user.enabled ? 'error.main' : 'success.main',
-                }}
-              >
-                <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}>
-                  {user.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
-                </ListItemIcon>
-                <ListItemText primary={user.enabled ? 'Deactivate User' : 'Reactivate User'} />
-              </MenuItem>
-
-              <MenuItem
-                disabled={isProtected}
-                onClick={() => {
-                  setDeleteDialogUser(user);
-                  setActionMenu(null);
-                }}
-                sx={{
-                  borderRadius: '8px',
-                  py: 1,
-                  gap: 1.5,
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  color: '#EF4444',
-                }}
-              >
-                <ListItemIcon sx={{ color: '#EF4444', minWidth: 'auto' }}>
-                  <DeleteOutlineIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Delete Permanently" />
-              </MenuItem>
-
-              <MenuItem
-                onClick={() => {
-                  setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true });
-                  setClearHistoryUser(user);
-                  setActionMenu(null);
-                }}
-                sx={{
-                  borderRadius: '8px',
-                  py: 1,
-                  gap: 1.5,
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  color: 'warning.main',
-                }}
-              >
-                <ListItemIcon sx={{ color: 'warning.main', minWidth: 'auto' }}>
-                  <HistoryToggleOffIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Clear History" />
-              </MenuItem>
-
-              <MenuItem
-                onClick={() => {
-                  setSelectedUserForOffer({ id: user.id, name: user.name, email: user.email });
-                  setActionMenu(null);
-                }}
-                sx={{
-                  borderRadius: '8px',
-                  py: 1,
-                  gap: 1.5,
-                  fontWeight: 600,
-                  fontSize: '0.875rem',
-                  color: 'primary.main',
-                }}
-              >
-                <ListItemIcon sx={{ color: 'primary.main', minWidth: 'auto' }}>
-                  <CardGiftcardIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText primary="Grant Offer / Perks" />
-              </MenuItem>
-
-              {user.lat != null && (
-                <MenuItem
-                  onClick={() => {
-                    locate(user);
-                    setActionMenu(null);
-                  }}
-                  sx={{
-                    borderRadius: '8px',
-                    py: 1,
-                    gap: 1.5,
-                    fontWeight: 600,
-                    fontSize: '0.875rem',
-                  }}
-                >
-                  <ListItemIcon sx={{ color: 'info.main', minWidth: 'auto' }}>
-                    <MyLocationIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText primary="View on Map" />
-                </MenuItem>
-              )}
-            </>
-          );
+          const item = (color: string) => ({ borderRadius: '8px', py: 1, gap: 1.5, fontWeight: 600, fontSize: '0.875rem', color });
+          return [
+            <Stack key="head" direction="row" spacing={1.25} alignItems="center" sx={{ px: 1.5, py: 1.25 }}>
+              <Avatar src={user.picture} sx={{ width: 34, height: 34, bgcolor: 'primary.main', fontWeight: 800 }}>{user.name.charAt(0).toUpperCase()}</Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography noWrap sx={{ fontWeight: 800, fontSize: '0.88rem', lineHeight: 1.2 }}>{user.name}</Typography>
+                <Typography noWrap variant="caption" color="text.secondary">{user.email}</Typography>
+              </Box>
+            </Stack>,
+            <Divider key="d1" sx={{ my: 0.5 }} />,
+            <MenuItem key="offer" onClick={() => { setSelectedUserForOffer({ id: user.id, name: user.name, email: user.email }); setActionMenu(null); }} sx={item('primary.main')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}><CardGiftcardIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Grant offer / perks" />
+            </MenuItem>,
+            ...(user.lat != null ? [
+              <MenuItem key="map" onClick={() => { locate(user); setActionMenu(null); }} sx={item('text.primary')}>
+                <ListItemIcon sx={{ color: 'info.main', minWidth: 'auto' }}><MyLocationIcon fontSize="small" /></ListItemIcon>
+                <ListItemText primary="View on map" />
+              </MenuItem>,
+            ] : []),
+            <MenuItem key="hist" onClick={() => { setHistoryScope({ all: true, trips: true, bookings: true, media: true, alerts: true }); setClearHistoryUser(user); setActionMenu(null); }} sx={item('warning.main')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}><HistoryToggleOffIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Clear history" />
+            </MenuItem>,
+            <Divider key="d2" sx={{ my: 0.5 }} />,
+            <Typography key="dz" variant="caption" color="text.disabled" sx={{ px: 1.5, fontWeight: 800, letterSpacing: '0.06em' }}>DANGER ZONE{isProtected ? ' · PROTECTED' : ''}</Typography>,
+            <MenuItem key="status" disabled={isProtected} onClick={() => { setStatusDialogUser(user); setActionMenu(null); }} sx={item(user.enabled ? 'error.main' : 'success.main')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}>{user.enabled ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}</ListItemIcon>
+              <ListItemText primary={user.enabled ? 'Deactivate user' : 'Reactivate user'} />
+            </MenuItem>,
+            <MenuItem key="del" disabled={isProtected} onClick={() => { setDeleteTyped(''); setDeleteDialogUser(user); setActionMenu(null); }} sx={item('#EF4444')}>
+              <ListItemIcon sx={{ color: 'inherit', minWidth: 'auto' }}><DeleteOutlineIcon fontSize="small" /></ListItemIcon>
+              <ListItemText primary="Delete permanently" />
+            </MenuItem>,
+          ];
         })()}
       </Menu>
     </Box>

@@ -643,13 +643,17 @@ export const CampaignsPage: React.FC = () => {
     }
   };
 
+  const [broadcastingId, setBroadcastingId] = useState<string | null>(null);
   const handleBroadcast = async (id: string) => {
+    setBroadcastingId(id);
     try {
       const res = await campaignService.broadcastCampaign(id);
       enqueueSnackbar(res.message || 'Campaign broadcasted to users!', { variant: 'success' });
       fetchData();
     } catch (err: any) {
       enqueueSnackbar(err?.response?.data?.message || 'Failed to broadcast campaign.', { variant: 'error' });
+    } finally {
+      setBroadcastingId(null);
     }
   };
 
@@ -907,8 +911,19 @@ export const CampaignsPage: React.FC = () => {
                           {(c.status === 'APPROVED' || c.status === 'PAUSED') && <Button size="small" variant="contained" startIcon={<PlayArrow />} onClick={() => handleActivate(c.id)} sx={{ fontWeight: 700 }}>{c.status === 'PAUSED' ? 'Resume' : 'Launch'}</Button>}
                           {c.status === 'ACTIVE' && (
                             <>
-                              <Button size="small" variant="contained" color="secondary" startIcon={<Send />} onClick={() => handleBroadcast(c.id)} sx={{ fontWeight: 700 }}>Broadcast</Button>
-                              <Button size="small" variant="outlined" color="warning" startIcon={<PauseCircle />} onClick={() => handlePause(c.id)} sx={{ fontWeight: 700 }}>Pause</Button>
+                              <Button
+                                size="small" variant="contained" startIcon={<Send />}
+                                disabled={broadcastingId === c.id}
+                                onClick={() => handleBroadcast(c.id)}
+                                sx={{ fontWeight: 800, background: 'linear-gradient(135deg,#7C3AED,#6366F1)', boxShadow: '0 6px 16px -6px #7C3AED' }}
+                              >
+                                {broadcastingId === c.id ? 'Sending…' : 'Broadcast'}
+                              </Button>
+                              <Tooltip title="Pause campaign">
+                                <IconButton size="small" color="warning" onClick={() => handlePause(c.id)} sx={{ border: '1px solid', borderColor: 'warning.main', borderRadius: '8px' }}>
+                                  <PauseCircle fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
                             </>
                           )}
                         </Stack>

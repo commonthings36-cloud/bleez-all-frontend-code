@@ -190,117 +190,58 @@ export const TopNav: React.FC = () => {
             onClose={handleCloseNotif}
             anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            PaperProps={{ sx: { width: 340, p: 0, mt: 1.5 } }}
+            PaperProps={{ sx: { width: 380, p: 0, mt: 1.5, borderRadius: '16px', overflow: 'hidden' } }}
           >
-            <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-              <Typography variant="h6" sx={{ fontSize: '0.95rem', fontWeight: 700 }}>
-                System Notifications
-              </Typography>
+            <Box sx={{ p: 2, color: '#fff', background: 'linear-gradient(135deg,#6D28D9,#6366F1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box>
+                <Typography sx={{ fontSize: '1rem', fontWeight: 800, lineHeight: 1.2 }}>Notifications</Typography>
+                <Typography sx={{ fontSize: '0.75rem', opacity: 0.85 }}>{notifications.length} item{notifications.length === 1 ? '' : 's'} · campaigns, SOS &amp; advisories</Typography>
+              </Box>
+              <Box sx={{ width: 36, height: 36, borderRadius: '11px', bgcolor: 'rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <NotificationsNoneIcon fontSize="small" />
+              </Box>
             </Box>
-            <List disablePadding>
+            <List disablePadding sx={{ maxHeight: 380, overflowY: 'auto' }}>
               {notifications.length === 0 ? (
-                <ListItem sx={{ py: 2 }}>
-                  <ListItemText
-                    primary={
-                      <Typography variant="body2" color="text.secondary" align="center">
-                        No active notifications
-                      </Typography>
-                    }
-                  />
-                </ListItem>
+                <Box sx={{ py: 4, textAlign: 'center' }}>
+                  <NotificationsNoneIcon sx={{ fontSize: 36, color: 'text.disabled' }} />
+                  <Typography variant="body2" color="text.secondary">You're all caught up</Typography>
+                </Box>
               ) : (
-                notifications.slice(0, 6).map((n, idx) => (
-                  <React.Fragment key={n.id || idx}>
+                notifications.slice(0, 6).map((n, idx) => {
+                  const isCamp = n.type === 'campaign';
+                  const isSos = n.severity === 'HIGH' || n.type === 'emergency';
+                  const color = isCamp ? '#7C3AED' : isSos ? '#EF4444' : '#F59E0B';
+                  return (
                     <ListItem
+                      key={n.id || idx}
                       alignItems="flex-start"
-                      sx={{
-                        py: 1.5,
-                        cursor: n.path ? 'pointer' : 'default',
-                        '&:hover': n.path ? { bgcolor: 'action.hover' } : {},
-                      }}
-                      onClick={() => {
-                        if (n.path) {
-                          handleCloseNotif();
-                          navigate(n.path);
-                        }
-                      }}
+                      onClick={() => { handleCloseNotif(); navigate(n.path || '/notifications'); }}
+                      sx={{ py: 1.5, gap: 1.5, cursor: 'pointer', borderLeft: `3px solid ${color}`, borderBottom: `1px solid ${theme.palette.divider}`, '&:hover': { bgcolor: 'action.hover' } }}
                     >
-                      <ListItemAvatar>
-                        <Avatar
-                          sx={{
-                            bgcolor:
-                              n.type === 'campaign'
-                                ? 'primary.main'
-                                : n.severity === 'HIGH' || n.type === 'emergency'
-                                ? 'error.main'
-                                : 'warning.main',
-                            width: 36,
-                            height: 36,
-                          }}
-                        >
-                          {n.type === 'campaign' ? (
-                            <CampaignIcon fontSize="small" />
-                          ) : (
-                            <WarningAmberIcon fontSize="small" />
-                          )}
-                        </Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={
-                          <Stack direction="row" alignItems="center" spacing={1}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                              {n.title || n.type || 'System Alert'}
-                            </Typography>
-                            {n.type === 'campaign' && (
-                              <Chip
-                                label="Campaign"
-                                size="small"
-                                color="primary"
-                                sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700 }}
-                              />
-                            )}
-                          </Stack>
-                        }
-                        secondary={
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {n.description || n.message || ''}
-                            {n.country && (
-                              <Typography variant="caption" display="block" color="primary" sx={{ mt: 0.5 }}>
-                                {n.country}
-                              </Typography>
-                            )}
-                          </Typography>
-                        }
-                      />
+                      <Avatar sx={{ width: 36, height: 36, bgcolor: color, mt: 0.25 }}>
+                        {isCamp ? <CampaignIcon fontSize="small" /> : <WarningAmberIcon fontSize="small" />}
+                      </Avatar>
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between">
+                          <Typography noWrap variant="body2" sx={{ fontWeight: 800 }}>{n.title || n.type || 'System alert'}</Typography>
+                          <Chip label={isCamp ? 'Campaign' : isSos ? 'SOS' : 'Advisory'} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 800, color, bgcolor: `${color}1f`, flexShrink: 0 }} />
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {n.description || n.message || ''}
+                        </Typography>
+                        {n.country && <Typography variant="caption" display="block" sx={{ color, fontWeight: 600 }} noWrap>{n.country}</Typography>}
+                      </Box>
                     </ListItem>
-                    <Divider component="li" />
-                  </React.Fragment>
-                ))
+                  );
+                })
               )}
             </List>
             <Box
-              sx={{
-                p: 1.5,
-                borderTop: `1px solid ${theme.palette.divider}`,
-                textAlign: 'center',
-                bgcolor: 'background.paper',
-              }}
+              onClick={() => { handleCloseNotif(); navigate('/notifications'); }}
+              sx={{ p: 1.5, textAlign: 'center', cursor: 'pointer', bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}
             >
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 700,
-                  color: 'primary.main',
-                  cursor: 'pointer',
-                  '&:hover': { textDecoration: 'underline' },
-                }}
-                onClick={() => {
-                  handleCloseNotif();
-                  navigate('/notifications');
-                }}
-              >
-                View All Notifications & Campaigns →
-              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 800, color: 'primary.main' }}>View all notifications &amp; campaigns →</Typography>
             </Box>
           </Popover>
 
